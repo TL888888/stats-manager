@@ -88,7 +88,10 @@
   .form-rows { display: flex; flex-direction: column; gap: 18px; }
   .form-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .form-row > div { display: flex; flex-direction: column; }
-  .form-row label { margin-bottom: 6px; min-height: 32px; }
+  .form-row label { margin-bottom: 6px; text-align: center; }
+  .w-purpose-wide { width: 22em; }
+  .w-note-wide { width: 13.2em; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
   .w-narrow { width: 8em; }
   .w-month { width: 9.6em; }
   .w-tool { width: 11.5em; }
@@ -235,7 +238,7 @@
         </div>
         <div class="form-row">
           <div><label>方案費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label style="white-space:normal; width:7.5em;">流量計費(如有另購買，請填寫費用)</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
+          <div><label>流量計費</label><input id="editTraffic" class="w-traffic" placeholder="如有另購買，請填寫每月流量費用" /></div>
           <div><label>導入工作應用</label><textarea id="editPurpose" class="w-purpose"></textarea></div>
           <div><label>Token / 用量數字</label><textarea id="editToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="editNote" class="w-note"></textarea></div>
@@ -316,14 +319,14 @@
           <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
           <div><label>使用方案</label><select id="newPlan" class="w-plan"></select></div>
           <div><label>方案費用</label><input id="newCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label style="white-space:normal; width:7.5em;">流量計費(如有另購買，請填寫費用)</label><input id="newTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
-          <div><label style="visibility:hidden">新增</label><button class="btn btn-primary" onclick="addRecord()">新增這筆</button></div>
+          <div><label>流量計費</label><input id="newTraffic" class="w-traffic" placeholder="如有另購買，請填寫每月流量費用" /></div>
         </div>
         <div class="form-row">
-          <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose"></textarea></div>
-          <div><label>Token / 用量數字（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
-          <div><label>備註</label><textarea id="newNote" class="w-note"></textarea></div>
-        </div>
+          <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose-wide"></textarea></div>
+          <div><label>Token / 用量數字<br>（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
+          <div><label>備註</label><textarea id="newNote" class="w-note-wide"></textarea></div>
+          <div style="align-self:flex-end"><button class="btn btn-primary btn-sm" onclick="addRecord()">新增這筆</button></div>
+        </div>​
       </div>
 
       <div id="addMsg"></div>
@@ -861,7 +864,9 @@ async function addAccount() {
   const result = await callAdminFunction({ action: 'create', email, password, role, department });
   if (result.error) { msgEl.innerHTML = `<div class="msg err">失敗：${result.error}</div>`; return; }
 
-  msgEl.innerHTML = `<div class="msg ok">帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
+  msgEl.innerHTML = result.reusedExisting
+    ? `<div class="msg ok">這個 email 在 TL_projects 其他系統（例如 wechat-manager）早就有登入帳號了，已直接沿用——請用他原本的密碼登入，剛剛輸入的初始密碼不會生效</div>`
+    : `<div class="msg ok">帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
   document.getElementById('newAccEmail').value = '';
   document.getElementById('newAccPassword').value = '';
   document.getElementById('newAccDept').value = '';
