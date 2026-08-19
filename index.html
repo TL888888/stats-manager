@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>統計系統 - AI用量統計</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy: #0f1b33;
+    --blue: #2563eb;
+    --blue-dark: #1d4ed8;
+    --border: #e5e7eb;
+    --bg: #f8fafc;
+    --text: #1f2937;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  html, body { overflow-x: hidden; width: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PingFang TC", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    background: var(--navy); color: #fff; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; row-gap: 8px; position: sticky; top: 0; z-index: 40;
+  }
+  header .title { font-size: 18px; font-weight: 600; white-space: nowrap; }
+  header .title span { color: #9fb4ff; font-weight: normal; font-size: 13px; margin-left: 8px; }
+  header .user-info { display: flex; align-items: center; gap: 16px; font-size: 14px; flex-wrap: wrap; }
+  header .user-info button {
+    background: #b91c1c; color: #fff; border: none; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .container { max-width: 1200px; margin: 20px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+  .toolbar-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs button {
+    padding: 9px 18px; border-radius: 8px; border: 1px solid var(--border);
+    background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted);
+  }
+  .tabs button.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .excel-actions {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    background: #fff; border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px;
+  }
+  .excel-actions input[type=file] { font-size: 13px; max-width: 190px; color: var(--muted); }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, textarea, select {
+    width: 100%; padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px; font-family: inherit;
+  }
+  textarea { resize: vertical; min-height: 60px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .btn { padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-dark); }
+  .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+  .btn-danger { background: #fee2e2; color: #b91c1c; border: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 80vh; -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; margin-top: 14px; font-size: 15px; width: max-content; min-width: 100%; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 15px; line-height: 1.6; }
+  th { color: #334155; font-weight: 700; background: #e2e8f0; white-space: nowrap; font-size: 13px; text-align: center; position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 #94a3b8; }
+  td.col-dept { width: 90px; min-width: 90px; white-space: nowrap; }
+  td.col-month { width: 90px; min-width: 90px; white-space: nowrap; }
+  td.col-tool { min-width: 100px; white-space: pre-wrap; word-break: break-word; }
+  td.col-plan { min-width: 100px; max-width: 160px; white-space: pre-wrap; word-break: break-word; }
+  td.col-freq { min-width: 80px; white-space: pre-wrap; word-break: break-word; }
+  td.col-purpose { max-width: 260px; white-space: pre-wrap; word-break: break-word; }
+  td.col-token { min-width: 140px; max-width: 260px; white-space: pre-wrap; word-break: break-word; }
+  td.col-note { white-space: pre-wrap; word-break: break-word; }
+  .search-big { font-size: 16px; padding: 14px 16px; }
+  .result-count { font-size: 13px; color: var(--muted); margin: 0; white-space: nowrap; }
+  .result-count b { color: var(--text); font-size: 15px; }
+  .hidden { display: none !important; }
+  .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
+  .msg.ok { background: #dcfce7; color: #166534; }
+  .msg.err { background: #fee2e2; color: #b91c1c; }
+  .login-box { max-width: 360px; margin: 100px auto; background: #fff; padding: 30px; border-radius: 10px; border: 1px solid var(--border); }
+  .login-box h2 { margin-top: 0; font-size: 18px; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #e0e7ff; color: #3730a3; margin-left: 6px; }
+  h3 { font-size: 15px; font-weight: 600; }
+  .search-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .search-row-keyword { flex: 2; min-width: 220px; }
+  .search-row-item { flex: 1; min-width: 150px; }
+  .search-btn-row { align-items: center; }
+  .input-row2 { display: flex; gap: 14px; margin-top: 14px; flex-wrap: wrap; }
+  .input-row2 > div { min-width: 150px; }
+  @media (max-width: 640px) {
+    header { position: relative; }
+    header .user-info button#logoutBtn { position: absolute; top: 10px; right: 14px; }
+    .container { padding: 0 6px; }
+    .card { padding: 14px 10px; }
+    th, td { padding: 10px 6px; }
+    .search-row { flex-direction: column; }
+    .search-row-keyword { width: 100%; }
+    .search-btn-row .btn { font-size: 12px; padding: 7px 12px; }
+    .search-btn-row { gap: 8px; }
+    .result-count { font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login-box">
+  <h2>統計系統</h2>
+  <label>Email</label>
+  <input id="loginEmail" type="email" placeholder="you@tlhome.com.tw" />
+  <div style="height:10px"></div>
+  <label>密碼</label>
+  <input id="loginPassword" type="password" />
+  <div id="monkeyToggle" style="display:flex; flex-direction:column; align-items:center; margin-top:8px;">
+    <button type="button" onclick="toggleMonkey()" style="background:none; border:none; cursor:pointer; padding:4px; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+      <svg id="monkeySvg" width="56" height="64" viewBox="0 0 72 80">
+        <circle cx="9" cy="36" r="9" fill="#c8853a"/>
+        <circle cx="9" cy="36" r="5.5" fill="#e8a96a"/>
+        <circle cx="63" cy="36" r="9" fill="#c8853a"/>
+        <circle cx="63" cy="36" r="5.5" fill="#e8a96a"/>
+        <ellipse cx="36" cy="62" rx="16" ry="14" fill="#c8853a"/>
+        <ellipse cx="36" cy="64" rx="9" ry="9" fill="#e8a96a"/>
+        <ellipse cx="36" cy="28" rx="21" ry="21" fill="#c8853a"/>
+        <ellipse cx="36" cy="32" rx="14" ry="11" fill="#e8a96a"/>
+        <ellipse cx="36" cy="35" rx="4.5" ry="3.5" fill="#b06828"/>
+        <circle cx="34" cy="35" r="1.4" fill="#7a3f10"/>
+        <circle cx="38" cy="35" r="1.4" fill="#7a3f10"/>
+        <path id="mkMouthN" d="M30 40 Q36 43 42 40" stroke="#7a3f10" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path id="mkMouthS" d="M30 40 Q36 46 42 40" stroke="#7a3f10" stroke-width="1.8" fill="none" stroke-linecap="round" style="display:none"/>
+        <g id="mkEyes" style="display:none">
+          <circle cx="26" cy="26" r="5.5" fill="white"/>
+          <circle cx="46" cy="26" r="5.5" fill="white"/>
+          <circle cx="26" cy="27" r="3.2" fill="#3a2010"/>
+          <circle cx="46" cy="27" r="3.2" fill="#3a2010"/>
+          <circle cx="27" cy="26" r="1.2" fill="white"/>
+          <circle cx="47" cy="26" r="1.2" fill="white"/>
+        </g>
+        <g id="mkHands">
+          <ellipse cx="18" cy="24" rx="9" ry="7" fill="#c8853a" transform="rotate(-20,18,24)"/>
+          <circle cx="11" cy="20" r="4" fill="#c8853a"/>
+          <circle cx="15" cy="18" r="4" fill="#c8853a"/>
+          <circle cx="19" cy="17" r="4" fill="#c8853a"/>
+          <circle cx="23" cy="19" r="4" fill="#c8853a"/>
+          <ellipse cx="54" cy="24" rx="9" ry="7" fill="#c8853a" transform="rotate(20,54,24)"/>
+          <circle cx="61" cy="20" r="4" fill="#c8853a"/>
+          <circle cx="57" cy="18" r="4" fill="#c8853a"/>
+          <circle cx="53" cy="17" r="4" fill="#c8853a"/>
+          <circle cx="49" cy="19" r="4" fill="#c8853a"/>
+        </g>
+        <g id="mkBanana" style="display:none">
+          <path d="M50 56 Q64 48 66 36" stroke="#c8853a" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path d="M60 16 Q75 22 72 38 Q70 46 64 43 Q52 38 55 22 Q57 14 60 16Z" fill="#f5d020"/>
+          <path d="M60 16 Q58 11 61 10" stroke="#8b6914" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path d="M72 38 Q76 43 74 46" stroke="#8b6914" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path d="M62 18 Q73 24 70 36" stroke="rgba(255,255,255,0.5)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </button>
+    <div id="mkLabel" style="font-size:11px; color:var(--muted); margin-top:2px;">點我顯示密碼</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:6px; margin-top:10px;">
+    <input id="rememberEmail" type="checkbox" style="width:15px; height:15px; cursor:pointer;" />
+    <label for="rememberEmail" style="font-size:12px; color:var(--muted); cursor:pointer; margin-bottom:0;">記住我的帳號（只記帳號，密碼每次都要輸入）</label>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">登入</button>
+  </div>
+  <div id="loginMsg"></div>
+</div>
+
+<div id="appView" class="hidden">
+  <header>
+    <div class="title">統計系統 <span>AI用量統計</span></div>
+    <div class="user-info">
+      <span id="userEmailLabel"></span>
+      <a href="javascript:void(0)" onclick="togglePwdBox()" style="color:#cbd5e1; font-size:13px; text-decoration:underline;">修改密碼</a>
+      <button onclick="doLogout()" id="logoutBtn">登出</button>
+    </div>
+  </header>
+
+  <div id="pwdBox" class="hidden" style="position:fixed; inset:0; background:rgba(15,27,51,0.4); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding-top:80px;">
+    <div class="card" style="max-width:360px; width:90%; padding:20px 22px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0">修改密碼</h3>
+      <label>新密碼</label><input id="newPassword1" type="password" placeholder="至少 6 碼" />
+      <div style="height:10px"></div>
+      <label>再輸入一次</label><input id="newPassword2" type="password" />
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-primary" onclick="changePassword()">更新密碼</button>
+        <button class="btn btn-outline" onclick="togglePwdBox()">取消</button>
+      </div>
+      <div id="pwdMsg"></div>
+    </div>
+  </div>
+
+  <div id="editBox" class="hidden" style="position:fixed; inset:0; background:rgba(15,27,51,0.4); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding-top:60px; overflow-y:auto;">
+    <div class="card" style="max-width:480px; width:90%; padding:20px 22px; box-shadow:0 10px 30px rgba(0,0,0,0.2); margin-bottom:40px;">
+      <h3 style="margin-top:0">編輯這筆紀錄</h3>
+      <div class="grid">
+        <div><label>部門</label><input id="editDepartment" /></div>
+        <div><label>統計月份</label><input id="editMonth" placeholder="2026-08" /></div>
+        <div><label>AI 工具名稱</label><input id="editTool" /></div>
+        <div><label>方案類型</label><input id="editPlan" /></div>
+        <div><label>使用頻率</label><input id="editFreq" /></div>
+      </div>
+      <div style="margin-top:14px"><label>主要用途</label><textarea id="editPurpose"></textarea></div>
+      <div style="margin-top:14px"><label>Token / 用量數字</label><textarea id="editToken"></textarea></div>
+      <div style="margin-top:14px"><label>備註</label><textarea id="editNote"></textarea></div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-primary" onclick="saveEditRecord()">儲存</button>
+        <button class="btn btn-outline" onclick="closeEditRecord()">取消</button>
+      </div>
+      <div id="editMsg"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="toolbar-row">
+      <div class="tabs">
+        <button id="tabBtnQuery" class="active" onclick="switchTab('query')">統計檢視</button>
+        <button id="tabBtnInput" onclick="switchTab('input')">填報</button>
+        <button id="tabBtnAdmin" class="hidden" onclick="switchTab('admin')">帳號管理</button>
+      </div>
+      <div id="excelActions" class="excel-actions hidden">
+        <input id="excelFile" type="file" accept=".xlsx,.xls" title="選擇 Excel 檔（欄位：部門/填表人/統計月份/AI 工具名稱/方案類型/使用頻率/主要用途/Token 用量數字/備註）" />
+        <button class="btn btn-primary" onclick="importExcel()">匯入（累加新增）</button>
+        <button class="btn btn-outline" onclick="exportExcel()">匯出</button>
+      </div>
+    </div>
+    <div id="importMsg"></div>
+
+    <!-- 統計檢視 -->
+    <div id="queryTab" class="card">
+      <div class="search-row">
+        <div class="search-row-keyword">
+          <label>模糊搜尋（工具名稱 / 用途 / 備註）</label>
+          <input id="searchBox" class="search-big" placeholder="輸入關鍵字" onkeydown="if(event.key==='Enter') runSearch()" />
+        </div>
+        <div id="deptFilterWrap" class="search-row-item hidden">
+          <label>部門</label>
+          <select id="filterDept"><option value="">全部部門</option></select>
+        </div>
+        <div class="search-row-item">
+          <label>統計月份</label>
+          <input id="filterMonth" placeholder="例：2026-08" />
+        </div>
+      </div>
+      <div class="btn-row search-btn-row">
+        <button class="btn btn-primary" onclick="runSearch()">🔍 檢索</button>
+        <button class="btn btn-outline" onclick="clearSearch()">清除條件</button>
+        <div class="result-count">搜尋總筆數：<b id="resultCount">-</b> 筆</div>
+      </div>
+
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:90px">部門</th><th style="width:90px">統計月份</th><th>AI 工具名稱</th>
+            <th>方案類型</th><th>使用頻率</th><th>主要用途</th><th>Token / 用量數字</th><th>備註</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+      </div>
+      <div id="resultsPager" class="btn-row" style="align-items:center; justify-content:flex-end;"></div>
+    </div>
+
+    <!-- 填報 -->
+    <div id="inputTab" class="card hidden">
+      <h3 style="margin-top:0">新增本部門一筆統計</h3>
+      <div class="grid">
+        <div id="newDeptWrap"><label>部門</label><input id="newDepartment" /></div>
+        <div><label>統計月份</label><input id="newMonth" placeholder="2026-08" /></div>
+        <div><label>AI 工具名稱</label><input id="newTool" /></div>
+        <div><label>方案類型</label><input id="newPlan" placeholder="公司付費／個人訂閱／免費版" /></div>
+        <div><label>使用頻率</label><input id="newFreq" placeholder="約 3 次/週" /></div>
+      </div>
+      <div class="input-row2">
+        <div style="flex:1"><label>主要用途</label><textarea id="newPurpose"></textarea></div>
+        <div style="flex:1"><label>Token / 用量數字（查不到請填「無法查詢」）</label><textarea id="newToken"></textarea></div>
+        <div style="flex:1"><label>備註</label><textarea id="newNote"></textarea></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addRecord()">新增這筆</button>
+      </div>
+      <div id="addMsg"></div>
+
+      <hr style="margin:24px 0; border:none; border-top:1px solid var(--border)" />
+
+      <p style="font-size:13px; color:var(--muted)">
+        Excel 匯入 / 匯出已移到頁面右上角（僅管理員可見）。匯入採「累加新增」：不會清空既有資料，每次匯入都是疊加上去，適合每月各部門陸續回報的資料型態。
+      </p>
+
+      <h3 id="allCountLabel">本部門目前資料（<span id="allCount">-</span> 筆，最新在上）</h3>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:90px">部門</th><th style="width:90px">統計月份</th><th>AI 工具名稱</th>
+            <th>方案類型</th><th>使用頻率</th><th>主要用途</th><th>Token / 用量數字</th><th>備註</th><th style="width:130px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="allBody"></tbody>
+      </table>
+      </div>
+      <div id="allPager" class="btn-row" style="align-items:center; justify-content:flex-end;"></div>
+    </div>
+
+    <!-- 帳號管理 (admin only) -->
+    <div id="adminTab" class="card hidden">
+      <h3 style="margin-top:0">新增登入帳號</h3>
+      <p style="font-size:13px; color:var(--muted)">
+        這裡會直接建立一組可登入的 email + 密碼，同時設定角色與部門，不用再去 Supabase 後台手動建。
+      </p>
+      <div class="grid">
+        <div><label>Email</label><input id="newAccEmail" placeholder="name@tlhome.com.tw" /></div>
+        <div><label>初始密碼</label><input id="newAccPassword" type="text" placeholder="至少 6 碼，之後本人可自行修改" /></div>
+        <div>
+          <label>角色</label>
+          <select id="newAccRole" onchange="toggleAccDeptField()">
+            <option value="filler">filler（僅能填報/查看自己部門）</option>
+            <option value="admin">admin（可查看全部部門、管理帳號）</option>
+          </select>
+        </div>
+        <div id="newAccDeptWrap"><label>部門</label><input id="newAccDept" placeholder="例：業務部" /></div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addAccount()">建立這組登入帳號</button>
+      </div>
+      <div id="accMsg"></div>
+
+      <hr style="margin:24px 0; border:none; border-top:1px solid var(--border)" />
+
+      <h3>目前所有帳號</h3>
+      <table>
+        <thead><tr><th>Email</th><th style="width:110px">角色</th><th style="width:120px">部門</th><th style="width:100px">移除</th></tr></thead>
+        <tbody id="accBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定區：跟訪談系統共用同一個 TL_projects 專案，值不用改。
+// SUPABASE_ANON_KEY 是「匿名公開金鑰」，設計上就是給前端網頁用的，
+// 搭配 RLS 規則就是安全的，不是要保密的 service_role key。
+// ============================================================
+const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const REPORT_TYPE = 'ai_usage'; // 這個介面固定只處理 AI 用量統計；未來新模組換別的值即可
+
+let currentUser = null;
+let currentRole = null;
+let currentDepartment = null;
+let lastSearchResults = [];
+let resultsPage = 1;
+let allRecordsData = [];
+let allPage = 1;
+const PAGE_SIZE = 20;
+
+function renderPager(containerId, totalItems, page, onPageChange) {
+  const el = document.getElementById(containerId);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  if (totalItems === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="btn btn-outline" ${page <= 1 ? 'disabled' : ''} id="${containerId}Prev">上一頁</button>
+    <span style="font-size:13px; color:var(--muted); padding:0 6px;">第 ${page} / ${totalPages} 頁</span>
+    <button class="btn btn-outline" ${page >= totalPages ? 'disabled' : ''} id="${containerId}Next">下一頁</button>
+  `;
+  if (page > 1) document.getElementById(containerId + 'Prev').onclick = () => onPageChange(page - 1);
+  if (page < totalPages) document.getElementById(containerId + 'Next').onclick = () => onPageChange(page + 1);
+}
+
+// ---------- 登入 / 登出 ----------
+var mkShowing = false;
+function toggleMonkey() {
+  mkShowing = !mkShowing;
+  document.getElementById('loginPassword').type = mkShowing ? 'text' : 'password';
+  document.getElementById('mkHands').style.display = mkShowing ? 'none' : '';
+  document.getElementById('mkEyes').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkBanana').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkMouthS').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkMouthN').style.display = mkShowing ? 'none' : '';
+  document.getElementById('mkLabel').textContent = mkShowing ? '點我隱藏密碼' : '點我顯示密碼';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const msgEl = document.getElementById('loginMsg');
+  msgEl.innerHTML = '';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    msgEl.innerHTML = `<div class="msg err">登入失敗：${error.message}</div>`;
+    return;
+  }
+
+  const { data: access, error: accessErr } = await sb
+    .from('stats_access')
+    .select('role, department')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (accessErr || !access) {
+    msgEl.innerHTML = `<div class="msg err">此帳號未授權使用本系統，請聯絡管理員開通。</div>`;
+    await sb.auth.signOut();
+    return;
+  }
+
+  currentUser = data.user;
+  currentRole = access.role;
+  currentDepartment = access.department;
+
+  if (document.getElementById('rememberEmail').checked) {
+    localStorage.setItem('stats_manager_remembered_email', email);
+  } else {
+    localStorage.removeItem('stats_manager_remembered_email');
+  }
+
+  enterApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function enterApp() {
+  document.getElementById('tabBtnAdmin').classList.add('hidden');
+  document.getElementById('excelActions').classList.add('hidden');
+  document.getElementById('deptFilterWrap').classList.add('hidden');
+
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('appView').classList.remove('hidden');
+  document.getElementById('userEmailLabel').innerHTML =
+    currentUser.email + `<span class="role-badge">${currentRole}${currentDepartment ? '・' + escapeHtml(currentDepartment) : ''}</span>`;
+
+  if (currentRole === 'admin') {
+    document.getElementById('tabBtnAdmin').classList.remove('hidden');
+    document.getElementById('deptFilterWrap').classList.remove('hidden');
+    document.getElementById('newDeptWrap').classList.remove('hidden');
+    document.getElementById('allCountLabel').innerHTML = '全部部門目前資料（<span id="allCount">-</span> 筆，最新在上）';
+  } else {
+    // filler：部門欄位鎖定成自己的部門，不給改
+    document.getElementById('newDepartment').value = currentDepartment || '';
+    document.getElementById('newDepartment').setAttribute('readonly', 'readonly');
+  }
+
+  populateDeptFilterFromAccounts();
+  runSearch();
+  refreshAllRecords();
+  if (currentRole === 'admin') refreshAccounts();
+}
+
+// ---------- Tab 切換 ----------
+function switchTab(tab) {
+  ['query', 'input', 'admin'].forEach(t => {
+    document.getElementById(t + 'Tab').classList.toggle('hidden', t !== tab);
+    document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+  });
+  document.getElementById('excelActions').classList.toggle('hidden', !(tab === 'input' && currentRole === 'admin'));
+}
+
+function togglePwdBox() {
+  document.getElementById('pwdBox').classList.toggle('hidden');
+  document.getElementById('newPassword1').value = '';
+  document.getElementById('newPassword2').value = '';
+  document.getElementById('pwdMsg').innerHTML = '';
+}
+
+async function populateDeptFilterFromAccounts() {
+  if (currentRole !== 'admin') return;
+  const { data } = await sb.from('stats_access').select('department').not('department', 'is', null);
+  const sel = document.getElementById('filterDept');
+  const depts = [...new Set((data || []).map(a => a.department).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">全部部門</option>' + depts.map(d => `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`).join('');
+}
+
+// ---------- 統計檢視（查詢） ----------
+async function runSearch() {
+  const keyword = document.getElementById('searchBox').value.trim();
+  const month = document.getElementById('filterMonth').value.trim();
+  const dept = currentRole === 'admin' ? document.getElementById('filterDept').value : '';
+
+  let query = sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('created_at', { ascending: false });
+
+  if (month) query = query.eq('report_month', month);
+  if (dept) query = query.eq('department', dept);
+  if (keyword) {
+    const like = `%${keyword}%`;
+    query = query.or(`tool_name.ilike.${like},purpose.ilike.${like},note.ilike.${like}`);
+  }
+  // filler 的可視範圍已經由 RLS 限制在自己部門，這裡不用再加條件
+
+  const { data, error } = await query;
+  if (error) { alert('搜尋失敗：' + error.message); return; }
+
+  lastSearchResults = data || [];
+  document.getElementById('resultCount').textContent = lastSearchResults.length;
+  resultsPage = 1;
+  renderResultsPage();
+}
+
+function renderResultsPage() {
+  const start = (resultsPage - 1) * PAGE_SIZE;
+  const pageItems = lastSearchResults.slice(start, start + PAGE_SIZE);
+
+  const body = document.getElementById('resultsBody');
+  body.innerHTML = pageItems.map(r => `
+    <tr>
+      <td class="col-dept">${escapeHtml(r.department)}</td>
+      <td class="col-month">${escapeHtml(r.report_month)}</td>
+      <td class="col-tool">${escapeHtml(r.tool_name)}</td>
+      <td class="col-plan">${escapeHtml(r.plan_type)}</td>
+      <td class="col-freq">${escapeHtml(r.usage_frequency)}</td>
+      <td class="col-purpose">${escapeHtml(r.purpose)}</td>
+      <td class="col-token">${escapeHtml(r.token_usage)}</td>
+      <td class="col-note">${escapeHtml(r.note)}</td>
+    </tr>
+  `).join('');
+
+  renderPager('resultsPager', lastSearchResults.length, resultsPage, (p) => { resultsPage = p; renderResultsPage(); });
+}
+
+function clearSearch() {
+  document.getElementById('searchBox').value = '';
+  document.getElementById('filterMonth').value = '';
+  if (currentRole === 'admin') document.getElementById('filterDept').value = '';
+  runSearch();
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ---------- 填報：手動新增 ----------
+async function addRecord() {
+  const record = {
+    report_type: REPORT_TYPE,
+    department: currentRole === 'admin' ? document.getElementById('newDepartment').value.trim() : currentDepartment,
+    report_month: document.getElementById('newMonth').value.trim(),
+    tool_name: document.getElementById('newTool').value.trim(),
+    plan_type: document.getElementById('newPlan').value.trim(),
+    usage_frequency: document.getElementById('newFreq').value.trim(),
+    purpose: document.getElementById('newPurpose').value.trim(),
+    token_usage: document.getElementById('newToken').value.trim(),
+    note: document.getElementById('newNote').value.trim(),
+    submitted_by: currentUser.email
+  };
+  const msgEl = document.getElementById('addMsg');
+  if (!record.department) { msgEl.innerHTML = `<div class="msg err">部門不能空白</div>`; return; }
+
+  const { error } = await sb.from('stats_submissions').insert(record);
+  if (error) { msgEl.innerHTML = `<div class="msg err">新增失敗：${error.message}</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">新增成功</div>`;
+  ['newMonth','newTool','newPlan','newFreq','newPurpose','newToken','newNote'].forEach(id => document.getElementById(id).value = '');
+  refreshAllRecords();
+  runSearch();
+}
+
+async function refreshAllRecords() {
+  let query = sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('created_at', { ascending: false });
+  const { data, error } = await query;
+  if (error) return;
+  allRecordsData = data || []; // filler 已經被 RLS 限制在自己部門，admin 看得到全部
+  document.getElementById('allCount').textContent = allRecordsData.length;
+  allPage = 1;
+  renderAllPage();
+}
+
+function renderAllPage() {
+  const start = (allPage - 1) * PAGE_SIZE;
+  const pageItems = allRecordsData.slice(start, start + PAGE_SIZE);
+
+  const body = document.getElementById('allBody');
+  body.innerHTML = pageItems.map(r => `
+    <tr>
+      <td class="col-dept">${escapeHtml(r.department)}</td>
+      <td class="col-month">${escapeHtml(r.report_month)}</td>
+      <td class="col-tool">${escapeHtml(r.tool_name)}</td>
+      <td class="col-plan">${escapeHtml(r.plan_type)}</td>
+      <td class="col-freq">${escapeHtml(r.usage_frequency)}</td>
+      <td class="col-purpose">${escapeHtml(r.purpose)}</td>
+      <td class="col-token">${escapeHtml(r.token_usage)}</td>
+      <td class="col-note">${escapeHtml(r.note)}</td>
+      <td>
+        <div style="display:flex; gap:6px;">
+          <button class="btn btn-outline" style="padding:6px 10px; font-size:12px;" onclick="openEditRecord('${r.id}')">編輯</button>
+          <button class="btn btn-danger" style="padding:6px 10px; font-size:12px;" onclick="deleteRecord('${r.id}')">刪除</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  renderPager('allPager', allRecordsData.length, allPage, (p) => { allPage = p; renderAllPage(); });
+}
+
+async function deleteRecord(id) {
+  if (!confirm('確定刪除這一筆？')) return;
+  const { error } = await sb.from('stats_submissions').delete().eq('id', id);
+  if (error) { alert('刪除失敗：' + error.message); return; }
+  refreshAllRecords();
+  runSearch();
+}
+
+// ---------- 編輯單筆紀錄 ----------
+let editingRecordId = null;
+
+function openEditRecord(id) {
+  const r = allRecordsData.find(x => x.id === id);
+  if (!r) { alert('找不到這筆資料，畫面可能過期，請重新整理再試'); return; }
+  editingRecordId = id;
+  document.getElementById('editDepartment').value = r.department || '';
+  document.getElementById('editMonth').value = r.report_month || '';
+  document.getElementById('editTool').value = r.tool_name || '';
+  document.getElementById('editPlan').value = r.plan_type || '';
+  document.getElementById('editFreq').value = r.usage_frequency || '';
+  document.getElementById('editPurpose').value = r.purpose || '';
+  document.getElementById('editToken').value = r.token_usage || '';
+  document.getElementById('editNote').value = r.note || '';
+  document.getElementById('editMsg').innerHTML = '';
+  document.getElementById('editBox').classList.remove('hidden');
+}
+
+function closeEditRecord() {
+  document.getElementById('editBox').classList.add('hidden');
+  editingRecordId = null;
+}
+
+async function saveEditRecord() {
+  if (!editingRecordId) return;
+  const msgEl = document.getElementById('editMsg');
+  const updated = {
+    department: document.getElementById('editDepartment').value.trim(),
+    report_month: document.getElementById('editMonth').value.trim(),
+    tool_name: document.getElementById('editTool').value.trim(),
+    plan_type: document.getElementById('editPlan').value.trim(),
+    usage_frequency: document.getElementById('editFreq').value.trim(),
+    purpose: document.getElementById('editPurpose').value.trim(),
+    token_usage: document.getElementById('editToken').value.trim(),
+    note: document.getElementById('editNote').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await sb.from('stats_submissions').update(updated).eq('id', editingRecordId);
+  if (error) { msgEl.innerHTML = `<div class="msg err">儲存失敗：${error.message}</div>`; return; }
+
+  closeEditRecord();
+  refreshAllRecords();
+  runSearch();
+}
+
+// ---------- Excel 匯入（累加新增）/ 匯出 ----------
+async function importExcel() {
+  const fileInput = document.getElementById('excelFile');
+  const msgEl = document.getElementById('importMsg');
+  if (!fileInput.files.length) { msgEl.innerHTML = `<div class="msg err">請先選擇檔案</div>`; return; }
+
+  const file = fileInput.files[0];
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+
+  let records = [];
+  let sheetSummary = [];
+  let skippedSheets = [];
+  wb.SheetNames.forEach(sheetName => {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (rows.length === 0) return;
+
+    const headers = Object.keys(rows[0]);
+    const looksLikeStatsSheet = ['部門', 'AI 工具名稱', '統計月份'].some(k => headers.includes(k));
+    if (!looksLikeStatsSheet) { skippedSheets.push(sheetName); return; }
+
+    const sheetRecords = rows.map(row => ({
+      report_type: REPORT_TYPE,
+      department: String(row['部門'] || '').trim(),
+      report_month: String(row['統計月份'] || '').trim(),
+      tool_name: String(row['AI 工具名稱'] || '').trim(),
+      plan_type: String(row['方案類型'] || '').trim(),
+      usage_frequency: String(row['使用頻率'] || '').trim(),
+      purpose: String(row['主要用途'] || '').trim(),
+      token_usage: String(row['Token / 用量數字'] || row['Token/用量數字'] || '').trim(),
+      note: String(row['備註'] || '').trim(),
+      submitted_by: String(row['填表人'] || '').trim() || currentUser.email
+    })).filter(r => r.department && r.tool_name);
+
+    if (sheetRecords.length > 0) {
+      sheetSummary.push(`${sheetName}(${sheetRecords.length}筆)`);
+      records = records.concat(sheetRecords);
+    }
+  });
+
+  if (records.length === 0) {
+    msgEl.innerHTML = `<div class="msg err">Excel 裡讀不到資料，請確認欄位名稱是否包含：部門/AI 工具名稱/統計月份 等</div>`;
+    return;
+  }
+
+  // 累加新增：不清空既有資料，直接 insert
+  const { error: insErr } = await sb.from('stats_submissions').insert(records);
+  if (insErr) { msgEl.innerHTML = `<div class="msg err">寫入失敗：${insErr.message}</div>`; return; }
+
+  const skippedNote = skippedSheets.length > 0 ? `，已跳過非統計格式的工作表：${skippedSheets.join('、')}` : '';
+  msgEl.innerHTML = `<div class="msg ok">匯入成功，共新增 ${records.length} 筆（${sheetSummary.join('、')}）${skippedNote}</div>`;
+  fileInput.value = '';
+  refreshAllRecords();
+  runSearch();
+}
+
+async function exportExcel() {
+  const { data, error } = await sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('department').order('report_month', { ascending: false });
+  if (error) { alert('匯出失敗：' + error.message); return; }
+
+  const rows = data.map(r => ({
+    '部門': r.department || '',
+    '填表人': r.submitted_by || '',
+    '統計月份': r.report_month || '',
+    'AI 工具名稱': r.tool_name || '',
+    '方案類型': r.plan_type || '',
+    '使用頻率': r.usage_frequency || '',
+    '主要用途': r.purpose || '',
+    'Token / 用量數字': r.token_usage || '',
+    '備註': r.note || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'AI用量統計');
+  XLSX.writeFile(wb, `AI用量統計_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ---------- 帳號管理 (admin only) ----------
+function toggleAccDeptField() {
+  const role = document.getElementById('newAccRole').value;
+  document.getElementById('newAccDeptWrap').classList.toggle('hidden', role === 'admin');
+}
+
+async function refreshAccounts() {
+  const { data, error } = await sb.from('stats_access').select('*').order('email');
+  if (error) return;
+  const body = document.getElementById('accBody');
+  body.innerHTML = data.map(a => `
+    <tr>
+      <td>${escapeHtml(a.email)}</td>
+      <td>
+        <select onchange="updateAccountRole('${a.email}', this.value)" style="padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+          <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>filler</option>
+          <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>admin</option>
+        </select>
+      </td>
+      <td>${escapeHtml(a.department || '-')}</td>
+      <td><button class="btn btn-danger" onclick="deleteAccount('${a.email}')">移除</button></td>
+    </tr>
+  `).join('');
+}
+
+async function updateAccountRole(email, newRole) {
+  const result = await callAdminFunction({ action: 'update_profile', email, role: newRole, department: null });
+  if (result.error) { alert('角色更新失敗：' + result.error); }
+  refreshAccounts();
+}
+
+const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/stats-admin-user-management`;
+
+async function callAdminFunction(payload) {
+  const { data: refreshed } = await sb.auth.refreshSession();
+  let session = refreshed?.session;
+  if (!session) {
+    const { data } = await sb.auth.getSession();
+    session = data.session;
+  }
+  if (!session) {
+    return { error: '登入狀態已失效，請重新整理頁面、重新登入後再試一次' };
+  }
+  const res = await fetch(EDGE_FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function addAccount() {
+  const email = document.getElementById('newAccEmail').value.trim();
+  const password = document.getElementById('newAccPassword').value;
+  const role = document.getElementById('newAccRole').value;
+  const department = document.getElementById('newAccDept').value.trim();
+  const msgEl = document.getElementById('accMsg');
+  if (!email || !password) { msgEl.innerHTML = `<div class="msg err">請輸入 email 與初始密碼</div>`; return; }
+  if (role === 'filler' && !department) { msgEl.innerHTML = `<div class="msg err">填表人角色請填部門</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">建立中...</div>`;
+  const result = await callAdminFunction({ action: 'create', email, password, role, department });
+  if (result.error) { msgEl.innerHTML = `<div class="msg err">失敗：${result.error}</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
+  document.getElementById('newAccEmail').value = '';
+  document.getElementById('newAccPassword').value = '';
+  document.getElementById('newAccDept').value = '';
+  refreshAccounts();
+  populateDeptFilterFromAccounts();
+}
+
+async function deleteAccount(email) {
+  if (!confirm(`確定移除 ${email}？這會一併刪除他的登入帳號，無法復原。`)) return;
+  const result = await callAdminFunction({ action: 'delete', email });
+  if (result.error) { alert('失敗：' + result.error); return; }
+  refreshAccounts();
+  populateDeptFilterFromAccounts();
+}
+
+// ---------- 帳號設定：自己改密碼 ----------
+async function changePassword() {
+  const p1 = document.getElementById('newPassword1').value;
+  const p2 = document.getElementById('newPassword2').value;
+  const msgEl = document.getElementById('pwdMsg');
+
+  if (!p1 || p1.length < 6) { msgEl.innerHTML = `<div class="msg err">密碼至少需要 6 碼</div>`; return; }
+  if (p1 !== p2) { msgEl.innerHTML = `<div class="msg err">兩次輸入的密碼不一致</div>`; return; }
+
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) { msgEl.innerHTML = `<div class="msg err">修改失敗：${error.message}</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">密碼已更新，下次登入請用新密碼</div>`;
+  document.getElementById('newPassword1').value = '';
+  document.getElementById('newPassword2').value = '';
+
+  setTimeout(() => {
+    document.getElementById('pwdBox').classList.add('hidden');
+    msgEl.innerHTML = '';
+  }, 1200);
+}
+
+// ---------- 進站時檢查是否已登入 ----------
+(async () => {
+  const rememberedEmail = localStorage.getItem('stats_manager_remembered_email');
+  if (rememberedEmail) {
+    document.getElementById('loginEmail').value = rememberedEmail;
+    document.getElementById('rememberEmail').checked = true;
+  }
+
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    const email = data.session.user.email;
+    const { data: access } = await sb.from('stats_access').select('role, department').eq('email', email).maybeSingle();
+    if (access) {
+      currentUser = data.session.user;
+      currentRole = access.role;
+      currentDepartment = access.department;
+      enterApp();
+    }
+  }
+})();
+</script>
+</body>
+</html>
