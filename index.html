@@ -356,7 +356,7 @@
       </p>
       <div class="form-row" style="align-items:flex-end;">
         <div style="min-width:220px"><label>Email</label><input id="newAccEmail" placeholder="name@tlhome.com.tw" /></div>
-        <div style="min-width:180px"><label>初始密碼</label><input id="newAccPassword" type="text" placeholder="至少 6 碼，之後本人可自行修改" /></div>
+        <div style="min-width:200px"><label>初始密碼（若對方在 TLCS 其他系統已有帳號，留空即可）</label><input id="newAccPassword" type="text" placeholder="留空＝沿用既有帳號" /></div>
         <div style="min-width:180px">
           <label>角色</label>
           <select id="newAccRole" onchange="toggleAccDeptField()">
@@ -857,7 +857,7 @@ async function addAccount() {
   const role = document.getElementById('newAccRole').value;
   const department = document.getElementById('newAccDept').value;
   const msgEl = document.getElementById('accMsg');
-  if (!email || !password) { msgEl.innerHTML = `<div class="msg err">請輸入 email 與初始密碼</div>`; return; }
+  if (!email) { msgEl.innerHTML = `<div class="msg err">請輸入 email</div>`; return; }
   if (role === 'filler' && !department) { msgEl.innerHTML = `<div class="msg err">填表人角色請選部門</div>`; return; }
 
   msgEl.innerHTML = `<div class="msg ok">建立中...</div>`;
@@ -865,8 +865,8 @@ async function addAccount() {
   if (result.error) { msgEl.innerHTML = `<div class="msg err">失敗：${result.error}</div>`; return; }
 
   msgEl.innerHTML = result.reusedExisting
-    ? `<div class="msg ok">這個 email 在 TL_projects 其他系統（例如 wechat-manager）早就有登入帳號了，已直接沿用——請用他原本的密碼登入，剛剛輸入的初始密碼不會生效</div>`
-    : `<div class="msg ok">帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
+    ? `<div class="msg ok">這個 email 在 TL_projects 其他系統早就有登入帳號了，已直接沿用，請用他原本的密碼登入</div>`
+    : `<div class="msg ok">全新帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
   document.getElementById('newAccEmail').value = '';
   document.getElementById('newAccPassword').value = '';
   document.getElementById('newAccDept').value = '';
