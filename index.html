@@ -88,7 +88,7 @@
   .form-rows { display: flex; flex-direction: column; gap: 18px; }
   .form-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .form-row > div { display: flex; flex-direction: column; }
-  .form-row label { margin-bottom: 6px; text-align: center; }
+  .form-row label { margin-bottom: 6px; text-align: center; min-height: 34px; display: flex; align-items: flex-end; justify-content: center; line-height: 1.3; }
   .w-purpose-wide { width: 22em; }
   .w-note-wide { width: 13.2em; }
   .btn-sm { padding: 6px 14px; font-size: 13px; }
@@ -238,7 +238,7 @@
         </div>
         <div class="form-row">
           <div><label>方案費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label>流量計費</label><input id="editTraffic" class="w-traffic" placeholder="如有另購買，請填寫每月流量費用" /></div>
+          <div><label>流量計費(如有另購買，請填寫費用)</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
           <div><label>導入工作應用</label><textarea id="editPurpose" class="w-purpose"></textarea></div>
           <div><label>Token / 用量數字</label><textarea id="editToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="editNote" class="w-note"></textarea></div>
@@ -319,14 +319,14 @@
           <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
           <div><label>使用方案</label><select id="newPlan" class="w-plan"></select></div>
           <div><label>方案費用</label><input id="newCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label>流量計費</label><input id="newTraffic" class="w-traffic" placeholder="如有另購買，請填寫每月流量費用" /></div>
+          <div><label>流量計費(如有另購買，請填寫費用)</label><input id="newTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
+          <div><label>&nbsp;</label><button class="btn btn-primary btn-sm" onclick="addRecord()">新增這筆</button></div>
         </div>
         <div class="form-row">
           <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose-wide"></textarea></div>
           <div><label>Token / 用量數字<br>（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="newNote" class="w-note-wide"></textarea></div>
-          <div style="align-self:flex-end"><button class="btn btn-primary btn-sm" onclick="addRecord()">新增這筆</button></div>
-        </div>​
+        </div>
       </div>
 
       <div id="addMsg"></div>
@@ -364,6 +364,7 @@
             <option value="admin">admin（可查看全部部門、管理帳號）</option>
           </select>
         </div>
+        <div id="newAccPlantWrap" style="min-width:120px"><label>廠別</label><select id="newAccPlant"></select></div>
         <div id="newAccDeptWrap" style="min-width:140px"><label>部門</label><select id="newAccDept"></select></div>
       </div>
       <div class="btn-row">
@@ -375,7 +376,7 @@
 
       <h3>目前所有帳號</h3>
       <table>
-        <thead><tr><th>Email</th><th style="width:110px">角色</th><th style="width:120px">部門</th><th style="width:100px">移除</th></tr></thead>
+        <thead><tr><th>Email</th><th style="width:110px">角色</th><th style="width:100px">廠別</th><th style="width:120px">部門</th><th style="width:100px">移除</th></tr></thead>
         <tbody id="accBody"></tbody>
       </table>
     </div>
@@ -402,6 +403,7 @@ const PLANS = ['免費版','月租方案','年繳方案'];
 let currentUser = null;
 let currentRole = null;
 let currentDepartment = null;
+let currentPlant = null;
 let lastSearchResults = [];
 let resultsPage = 1;
 let allRecordsData = [];
@@ -453,7 +455,7 @@ async function doLogin() {
 
   const { data: access, error: accessErr } = await sb
     .from('stats_access')
-    .select('role, department')
+    .select('role, department, plant')
     .eq('email', email)
     .maybeSingle();
 
@@ -466,6 +468,7 @@ async function doLogin() {
   currentUser = data.user;
   currentRole = access.role;
   currentDepartment = access.department;
+  currentPlant = access.plant;
 
   if (document.getElementById('rememberEmail').checked) {
     localStorage.setItem('stats_manager_remembered_email', email);
@@ -489,7 +492,7 @@ function enterApp() {
   document.getElementById('loginView').classList.add('hidden');
   document.getElementById('appView').classList.remove('hidden');
   document.getElementById('userEmailLabel').innerHTML =
-    currentUser.email + `<span class="role-badge">${currentRole}${currentDepartment ? '・' + escapeHtml(currentDepartment) : ''}</span>`;
+    currentUser.email + `<span class="role-badge">${currentRole}${currentPlant ? '・' + escapeHtml(currentPlant) : ''}${currentDepartment ? '・' + escapeHtml(currentDepartment) : ''}</span>`;
 
   // 下拉選單初始化
   fillSelect(document.getElementById('newPlant'), PLANTS, true);
@@ -498,6 +501,7 @@ function enterApp() {
   fillSelect(document.getElementById('editPlan'), PLANS, true);
   fillSelect(document.getElementById('filterPlant'), PLANTS, false);
   document.getElementById('filterPlant').insertAdjacentHTML('afterbegin', '<option value="">全部廠別</option>');
+  fillSelect(document.getElementById('newAccPlant'), PLANTS, true);
 
   if (currentRole === 'admin') {
     document.getElementById('tabBtnAdmin').classList.remove('hidden');
@@ -509,7 +513,10 @@ function enterApp() {
     document.getElementById('filterDept').insertAdjacentHTML('afterbegin', '<option value="">全部部門</option>');
     document.getElementById('allCountLabel').innerHTML = '全部部門目前資料（<span id="allCount">-</span> 筆，最新在上）';
   } else {
-    // filler：部門欄位鎖定成自己的部門，改成唯讀顯示（不是下拉選單，避免誤改）
+    // filler：廠別、部門欄位都鎖定成自己的帳號設定，改成唯讀顯示（不是下拉選單，避免誤改）
+    document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
+    const plantWrap = document.getElementById('newPlant').closest('div');
+    plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
     const wrap = document.getElementById('newDeptWrap');
     wrap.innerHTML = `<label>部門別</label><input value="${escapeHtml(currentDepartment || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
   }
@@ -602,7 +609,7 @@ async function addRecord() {
   const record = {
     report_type: REPORT_TYPE,
     report_month: document.getElementById('newMonth').value.trim(),
-    plant: document.getElementById('newPlant').value,
+    plant: currentRole === 'admin' ? document.getElementById('newPlant').value : currentPlant,
     department: currentRole === 'admin' ? document.getElementById('newDepartment').value : currentDepartment,
     tool_name: document.getElementById('newTool').value.trim(),
     plan_type: document.getElementById('newPlan').value,
@@ -614,15 +621,19 @@ async function addRecord() {
     submitted_by: currentUser.email
   };
   const msgEl = document.getElementById('addMsg');
-  if (!record.department) { msgEl.innerHTML = `<div class="msg err">部門不能空白</div>`; return; }
+  if (!record.department || !record.plant) { msgEl.innerHTML = `<div class="msg err">廠別、部門不能空白</div>`; return; }
 
   const { error } = await sb.from('stats_submissions').insert(record);
   if (error) { msgEl.innerHTML = `<div class="msg err">新增失敗：${error.message}</div>`; return; }
 
   msgEl.innerHTML = `<div class="msg ok">新增成功</div>`;
   ['newMonth','newTool','newCost','newTraffic','newPurpose','newToken','newNote'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('newPlant').value = '';
-  document.getElementById('newPlan').value = '';
+  if (currentRole === 'admin') {
+    document.getElementById('newPlant').value = '';
+    document.getElementById('newPlan').value = '';
+  } else {
+    document.getElementById('newPlan').value = '';
+  }
   refreshAllRecords();
   runSearch();
 }
@@ -800,6 +811,7 @@ async function exportExcel() {
 function toggleAccDeptField() {
   const role = document.getElementById('newAccRole').value;
   document.getElementById('newAccDeptWrap').classList.toggle('hidden', role === 'admin');
+  document.getElementById('newAccPlantWrap').classList.toggle('hidden', role === 'admin');
 }
 
 async function refreshAccounts() {
@@ -815,6 +827,7 @@ async function refreshAccounts() {
           <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>admin</option>
         </select>
       </td>
+      <td>${escapeHtml(a.plant || '-')}</td>
       <td>${escapeHtml(a.department || '-')}</td>
       <td><button class="btn btn-danger" onclick="deleteAccount('${a.email}')">移除</button></td>
     </tr>
@@ -822,8 +835,8 @@ async function refreshAccounts() {
 }
 
 async function updateAccountRole(email, newRole) {
-  const acc = (await sb.from('stats_access').select('department').eq('email', email).maybeSingle()).data;
-  const result = await callAdminFunction({ action: 'update_profile', email, role: newRole, department: acc ? acc.department : null });
+  const acc = (await sb.from('stats_access').select('department, plant').eq('email', email).maybeSingle()).data;
+  const result = await callAdminFunction({ action: 'update_profile', email, role: newRole, department: acc ? acc.department : null, plant: acc ? acc.plant : null });
   if (result.error) { alert('角色更新失敗：' + result.error); }
   refreshAccounts();
 }
@@ -855,13 +868,14 @@ async function addAccount() {
   const email = document.getElementById('newAccEmail').value.trim();
   const password = document.getElementById('newAccPassword').value;
   const role = document.getElementById('newAccRole').value;
+  const plant = document.getElementById('newAccPlant').value;
   const department = document.getElementById('newAccDept').value;
   const msgEl = document.getElementById('accMsg');
   if (!email) { msgEl.innerHTML = `<div class="msg err">請輸入 email</div>`; return; }
-  if (role === 'filler' && !department) { msgEl.innerHTML = `<div class="msg err">填表人角色請選部門</div>`; return; }
+  if (role === 'filler' && (!plant || !department)) { msgEl.innerHTML = `<div class="msg err">填表人角色請選廠別與部門</div>`; return; }
 
   msgEl.innerHTML = `<div class="msg ok">建立中...</div>`;
-  const result = await callAdminFunction({ action: 'create', email, password, role, department });
+  const result = await callAdminFunction({ action: 'create', email, password, role, plant, department });
   if (result.error) { msgEl.innerHTML = `<div class="msg err">失敗：${result.error}</div>`; return; }
 
   msgEl.innerHTML = result.reusedExisting
@@ -869,6 +883,7 @@ async function addAccount() {
     : `<div class="msg ok">全新帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
   document.getElementById('newAccEmail').value = '';
   document.getElementById('newAccPassword').value = '';
+  document.getElementById('newAccPlant').value = '';
   document.getElementById('newAccDept').value = '';
   refreshAccounts();
 }
@@ -937,11 +952,12 @@ document.querySelectorAll('.table-wrap').forEach(enableDragScroll);
   const { data } = await sb.auth.getSession();
   if (data.session) {
     const email = data.session.user.email;
-    const { data: access } = await sb.from('stats_access').select('role, department').eq('email', email).maybeSingle();
+    const { data: access } = await sb.from('stats_access').select('role, department, plant').eq('email', email).maybeSingle();
     if (access) {
       currentUser = data.session.user;
       currentRole = access.role;
       currentDepartment = access.department;
+      currentPlant = access.plant;
       enterApp();
     }
   }
