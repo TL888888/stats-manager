@@ -88,7 +88,7 @@
   .form-rows { display: flex; flex-direction: column; gap: 18px; }
   .form-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .form-row > div { display: flex; flex-direction: column; }
-  .form-row label { margin-bottom: 6px; }
+  .form-row label { margin-bottom: 6px; min-height: 32px; }
   .w-narrow { width: 8em; }
   .w-month { width: 9.6em; }
   .w-tool { width: 11.5em; }
@@ -105,7 +105,7 @@
   .result-count { font-size: 13px; color: var(--muted); margin: 0; white-space: nowrap; }
   .result-count b { color: var(--text); font-size: 15px; }
   .hidden { display: none !important; }
-  .msg { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
+  .msg { display: inline-block; padding: 8px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
   .msg.ok { background: #dcfce7; color: #166534; }
   .msg.err { background: #fee2e2; color: #b91c1c; }
   .login-box { max-width: 360px; margin: 100px auto; background: #fff; padding: 30px; border-radius: 10px; border: 1px solid var(--border); }
@@ -234,8 +234,8 @@
           <div><label>使用方案</label><select id="editPlan" class="w-plan"></select></div>
         </div>
         <div class="form-row">
-          <div><label>使用費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label>流量計費</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
+          <div><label>方案費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
+          <div><label style="white-space:normal; width:7.5em;">流量計費(如有另購買，請填寫費用)</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
           <div><label>導入工作應用</label><textarea id="editPurpose" class="w-purpose"></textarea></div>
           <div><label>Token / 用量數字</label><textarea id="editToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="editNote" class="w-note"></textarea></div>
@@ -295,7 +295,7 @@
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>使用費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th>
           </tr>
         </thead>
         <tbody id="resultsBody"></tbody>
@@ -315,14 +315,14 @@
           <div id="newDeptWrap"><label>部門別</label><select id="newDepartment" class="w-narrow"></select></div>
           <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
           <div><label>使用方案</label><select id="newPlan" class="w-plan"></select></div>
+          <div><label>方案費用</label><input id="newCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
+          <div><label style="white-space:normal; width:7.5em;">流量計費(如有另購買，請填寫費用)</label><input id="newTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
+          <div><label style="visibility:hidden">新增</label><button class="btn btn-primary" onclick="addRecord()">新增這筆</button></div>
         </div>
         <div class="form-row">
-          <div><label>使用費用</label><input id="newCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
-          <div><label>流量計費</label><input id="newTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
           <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose"></textarea></div>
           <div><label>Token / 用量數字（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="newNote" class="w-note"></textarea></div>
-          <div><label style="visibility:hidden">新增</label><button class="btn btn-primary" onclick="addRecord()">新增這筆</button></div>
         </div>
       </div>
 
@@ -330,17 +330,13 @@
 
       <hr style="margin:24px 0; border:none; border-top:1px solid var(--border)" />
 
-      <p style="font-size:13px; color:var(--muted)">
-        Excel 匯入 / 匯出已移到頁面右上角（僅管理員可見）。匯入採「累加新增」：不會清空既有資料，每次匯入都是疊加上去，適合每月各部門陸續回報的資料型態。
-      </p>
-
       <h3 id="allCountLabel">本部門目前資料（<span id="allCount">-</span> 筆，最新在上）</h3>
       <div class="table-wrap">
       <table>
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>使用費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th><th class="col-action" style="width:130px">操作</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th><th class="col-action" style="width:130px">操作</th>
           </tr>
         </thead>
         <tbody id="allBody"></tbody>
@@ -744,7 +740,7 @@ async function importExcel() {
       department: String(row['部門別'] || row['部門'] || '').trim(),
       tool_name: String(row['AI 工具名稱'] || '').trim(),
       plan_type: String(row['使用方案'] || row['方案類型'] || '').trim(),
-      usage_frequency: String(row['使用費用'] || row['使用頻率'] || '').trim(),
+      usage_frequency: String(row['方案費用'] || row['使用費用'] || row['使用頻率'] || '').trim(),
       traffic_cost: String(row['流量計費'] || '').trim(),
       purpose: String(row['導入工作應用'] || row['主要用途'] || '').trim(),
       token_usage: String(row['Token / 用量數字'] || row['Token/用量數字'] || '').trim(),
@@ -785,7 +781,7 @@ async function exportExcel() {
     '統計月份': r.report_month || '',
     'AI 工具名稱': r.tool_name || '',
     '使用方案': r.plan_type || '',
-    '使用費用': r.usage_frequency || '',
+    '方案費用': r.usage_frequency || '',
     '流量計費': r.traffic_cost || '',
     '導入工作應用': r.purpose || '',
     'Token / 用量數字': r.token_usage || '',
