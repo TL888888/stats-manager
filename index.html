@@ -67,7 +67,8 @@
   .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
   .btn-danger { background: #fee2e2; color: #b91c1c; border: none; }
   .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
-  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 80vh; -webkit-overflow-scrolling: touch; }
+  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 80vh; -webkit-overflow-scrolling: touch; cursor: grab; }
+  .table-wrap.dragging { cursor: grabbing; user-select: none; }
   table { border-collapse: collapse; margin-top: 14px; font-size: 15px; width: max-content; min-width: 100%; }
   th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 15px; line-height: 1.6; }
   th { color: #334155; font-weight: 700; background: #e2e8f0; white-space: nowrap; font-size: 13px; text-align: center; position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 #94a3b8; }
@@ -80,19 +81,24 @@
   td.col-purpose { max-width: 200px; }
   td.col-token { min-width: 140px; max-width: 240px; }
   td.col-note { max-width: 140px; }
+  .col-action { position: sticky; right: 0; background: #fff; box-shadow: -2px 0 4px rgba(0,0,0,0.06); }
+  th.col-action { background: #e2e8f0; z-index: 6; }
 
   /* ---- 填報表單：兩排、共 10 欄 ---- */
-  .form-rows { display: flex; flex-direction: column; gap: 14px; }
-  .form-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .form-rows { display: flex; flex-direction: column; gap: 18px; }
+  .form-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
   .form-row > div { display: flex; flex-direction: column; }
-  .w-narrow { width: 4.6em; }
-  .w-tool { width: 9em; }
+  .form-row label { margin-bottom: 6px; }
+  .w-narrow { width: 8em; }
+  .w-month { width: 9.6em; }
+  .w-tool { width: 11.5em; }
   .w-plan { width: 8.5em; }
   .w-cost { width: 12em; }
-  .w-traffic { width: 6.6em; }
+  .w-traffic { width: 7.5em; }
   .w-purpose { width: 11em; }
   .w-token { width: 14em; }
   .w-note { width: 6.6em; }
+  .form-row select { padding-right: 6px; }
   .form-row textarea { min-height: 44px; }
 
   .search-big { font-size: 16px; padding: 14px 16px; }
@@ -221,7 +227,7 @@
       <h3 style="margin-top:0">編輯這筆紀錄</h3>
       <div class="form-rows">
         <div class="form-row">
-          <div><label>統計月份</label><input id="editMonth" type="month" class="w-narrow" /></div>
+          <div><label>統計月份</label><input id="editMonth" type="month" class="w-month" /></div>
           <div><label>廠別</label><select id="editPlant" class="w-narrow"></select></div>
           <div><label>部門別</label><select id="editDepartment" class="w-narrow"></select></div>
           <div><label>AI 工具名稱</label><input id="editTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
@@ -300,11 +306,11 @@
 
     <!-- 填報 -->
     <div id="inputTab" class="card hidden">
-      <h3 style="margin-top:0">新增本部門一筆統計</h3>
+      <h3 style="margin:0 0 10px 0; font-size:13px; color:var(--muted); font-weight:600;">新增本部門一筆統計</h3>
 
       <div class="form-rows">
         <div class="form-row">
-          <div><label>統計月份</label><input id="newMonth" type="month" class="w-narrow" /></div>
+          <div><label>統計月份</label><input id="newMonth" type="month" class="w-month" /></div>
           <div><label>廠別</label><select id="newPlant" class="w-narrow"></select></div>
           <div id="newDeptWrap"><label>部門別</label><select id="newDepartment" class="w-narrow"></select></div>
           <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
@@ -316,12 +322,10 @@
           <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose"></textarea></div>
           <div><label>Token / 用量數字（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="newNote" class="w-note"></textarea></div>
+          <div><label style="visibility:hidden">新增</label><button class="btn btn-primary" onclick="addRecord()">新增這筆</button></div>
         </div>
       </div>
 
-      <div class="btn-row">
-        <button class="btn btn-primary" onclick="addRecord()">新增這筆</button>
-      </div>
       <div id="addMsg"></div>
 
       <hr style="margin:24px 0; border:none; border-top:1px solid var(--border)" />
@@ -336,7 +340,7 @@
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>使用費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th><th style="width:130px">操作</th>
+            <th>使用費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th><th class="col-action" style="width:130px">操作</th>
           </tr>
         </thead>
         <tbody id="allBody"></tbody>
@@ -403,7 +407,7 @@ let lastSearchResults = [];
 let resultsPage = 1;
 let allRecordsData = [];
 let allPage = 1;
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 function fillSelect(sel, options, includeEmpty) {
   sel.innerHTML = (includeEmpty ? '<option value="">請選擇</option>' : '') +
@@ -641,7 +645,7 @@ function renderAllPage() {
   document.getElementById('allBody').innerHTML = pageItems.map(r => `
     <tr>
       ${rowCellsHtml(r)}
-      <td>
+      <td class="col-action">
         <div style="display:flex; gap:6px;">
           <button class="btn btn-outline" style="padding:6px 10px; font-size:12px;" onclick="openEditRecord('${r.id}')">編輯</button>
           <button class="btn btn-danger" style="padding:6px 10px; font-size:12px;" onclick="deleteRecord('${r.id}')">刪除</button>
@@ -896,6 +900,30 @@ async function changePassword() {
     msgEl.innerHTML = '';
   }, 1200);
 }
+
+// ---------- 表格可直接按住拖曳左右滑動（不用一定要抓那條細捲軸） ----------
+function enableDragScroll(el) {
+  let isDown = false, startX = 0, scrollLeft = 0;
+  el.addEventListener('mousedown', (e) => {
+    // 如果按下的是按鈕、輸入框等可互動元件，不啟動拖曳，避免蓋掉原本點擊功能
+    if (e.target.closest('button, a, input, select, textarea')) return;
+    isDown = true;
+    el.classList.add('dragging');
+    startX = e.pageX - el.offsetLeft;
+    scrollLeft = el.scrollLeft;
+  });
+  ['mouseleave', 'mouseup'].forEach(evt => el.addEventListener(evt, () => {
+    isDown = false;
+    el.classList.remove('dragging');
+  }));
+  el.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    el.scrollLeft = scrollLeft - (x - startX);
+  });
+}
+document.querySelectorAll('.table-wrap').forEach(enableDragScroll);
 
 // ---------- 進站時檢查是否已登入 ----------
 (async () => {
