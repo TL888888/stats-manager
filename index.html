@@ -364,7 +364,8 @@
         <div style="min-width:190px">
           <label>角色</label>
           <select id="newAccRole" onchange="toggleAccDeptField()">
-            <option value="filler">部門負責人（限單一廠別+部門）</option>
+            <option value="employee">員工（僅自己填報的資料）</option>
+            <option value="filler">部門主管（自己部門全部資料）</option>
             <option value="plant_manager">廠區管理者（該廠全部部門）</option>
             <option value="admin">總管理者（全部廠別/部門）</option>
           </select>
@@ -495,7 +496,7 @@ function enterApp() {
 
   document.getElementById('loginView').classList.add('hidden');
   document.getElementById('appView').classList.remove('hidden');
-  const roleLabel = { admin: '總管理者', plant_manager: '廠區管理者', filler: '部門負責人' }[currentRole] || currentRole;
+  const roleLabel = { admin: '總管理者', plant_manager: '廠區管理者', filler: '部門主管', employee: '員工' }[currentRole] || currentRole;
   document.getElementById('userEmailLabel').innerHTML =
     currentUser.email + `<span class="role-badge">${roleLabel}${currentPlant ? '・' + escapeHtml(currentPlant) : ''}${currentDepartment ? '・' + escapeHtml(currentDepartment) : ''}</span>`;
 
@@ -524,13 +525,22 @@ function enterApp() {
     const plantWrap = document.getElementById('newPlant').closest('div');
     plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
     document.getElementById('allCountLabel').innerHTML = `${escapeHtml(currentPlant || '')}全部部門目前資料（<span id="allCount">-</span> 筆，最新在上）`;
-  } else {
-    // 部門負責人：廠別、部門欄位都鎖定成自己的帳號設定，改成唯讀顯示（不是下拉選單，避免誤改）
+  } else if (currentRole === 'filler') {
+    // 部門主管：廠別、部門都鎖定成自己的帳號設定；看得到整個部門的資料
     document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
     const plantWrap = document.getElementById('newPlant').closest('div');
     plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
     const wrap = document.getElementById('newDeptWrap');
     wrap.innerHTML = `<label>部門別</label><input value="${escapeHtml(currentDepartment || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    document.getElementById('allCountLabel').innerHTML = `${escapeHtml(currentDepartment || '')}部門目前資料（<span id="allCount">-</span> 筆，最新在上）`;
+  } else {
+    // 員工：廠別、部門都鎖定，且只看得到自己填的那幾筆（由資料庫權限規則限制，前端只是同步顯示文字）
+    document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
+    const plantWrap = document.getElementById('newPlant').closest('div');
+    plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    const wrap = document.getElementById('newDeptWrap');
+    wrap.innerHTML = `<label>部門別</label><input value="${escapeHtml(currentDepartment || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    document.getElementById('allCountLabel').innerHTML = '我的填報紀錄（<span id="allCount">-</span> 筆，最新在上）';
   }
 
   runSearch();
@@ -623,7 +633,7 @@ async function addRecord() {
     report_type: REPORT_TYPE,
     report_month: document.getElementById('newMonth').value.trim(),
     plant: currentRole === 'admin' ? document.getElementById('newPlant').value : currentPlant,
-    department: currentRole === 'filler' ? currentDepartment : document.getElementById('newDepartment').value,
+    department: (currentRole === 'filler' || currentRole === 'employee') ? currentDepartment : document.getElementById('newDepartment').value,
     tool_name: document.getElementById('newTool').value.trim(),
     plan_type: document.getElementById('newPlan').value,
     usage_frequency: document.getElementById('newCost').value.trim(),
@@ -631,7 +641,8 @@ async function addRecord() {
     purpose: document.getElementById('newPurpose').value.trim(),
     token_usage: document.getElementById('newToken').value.trim(),
     note: document.getElementById('newNote').value.trim(),
-    submitted_by: document.getElementById('newSubmitterName').value.trim() || currentUser.email
+    submitted_by: document.getElementById('newSubmitterName').value.trim() || currentUser.email,
+    created_by_email: currentUser.email
   };
   const msgEl = document.getElementById('addMsg');
   if (!record.department || !record.plant) { msgEl.innerHTML = `<div class="msg err">廠別、部門不能空白</div>`; return; }
@@ -824,7 +835,7 @@ async function exportExcel() {
 // ---------- 帳號管理 (admin only) ----------
 function toggleAccDeptField() {
   const role = document.getElementById('newAccRole').value;
-  document.getElementById('newAccDeptWrap').classList.toggle('hidden', role !== 'filler');
+  document.getElementById('newAccDeptWrap').classList.toggle('hidden', !(role === 'filler' || role === 'employee'));
   document.getElementById('newAccPlantWrap').classList.toggle('hidden', role === 'admin');
 }
 
@@ -837,7 +848,8 @@ async function refreshAccounts() {
       <td style="padding-left:10px;">${escapeHtml(a.email)}</td>
       <td style="vertical-align:middle;">
         <select onchange="updateAccountRole('${a.email}', this.value)" style="width:auto; min-width:150px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
-          <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>部門負責人</option>
+          <option value="employee" ${a.role === 'employee' ? 'selected' : ''}>員工</option>
+          <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>部門主管</option>
           <option value="plant_manager" ${a.role === 'plant_manager' ? 'selected' : ''}>廠區管理者</option>
           <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>總管理者</option>
         </select>
@@ -887,7 +899,7 @@ async function addAccount() {
   const department = document.getElementById('newAccDept').value;
   const msgEl = document.getElementById('accMsg');
   if (!email) { msgEl.innerHTML = `<div class="msg err">請輸入 email</div>`; return; }
-  if (role === 'filler' && (!plant || !department)) { msgEl.innerHTML = `<div class="msg err">部門負責人請選廠別與部門</div>`; return; }
+  if ((role === 'filler' || role === 'employee') && (!plant || !department)) { msgEl.innerHTML = `<div class="msg err">員工／部門主管請選廠別與部門</div>`; return; }
   if (role === 'plant_manager' && !plant) { msgEl.innerHTML = `<div class="msg err">廠區管理者請選廠別</div>`; return; }
 
   msgEl.innerHTML = `<div class="msg ok">建立中...</div>`;
