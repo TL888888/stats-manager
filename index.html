@@ -378,8 +378,8 @@
       <hr style="margin:18px 0; border:none; border-top:1px solid var(--border)" />
 
       <h3 style="margin:0 0 8px 0;">目前所有帳號</h3>
-      <table>
-        <thead><tr><th>Email</th><th style="width:190px">角色</th><th style="width:100px">廠別</th><th style="width:120px">部門</th><th style="width:100px">移除</th></tr></thead>
+      <table style="table-layout:fixed; width:auto;">
+        <thead><tr><th style="width:260px; text-align:left; padding-left:10px;">Email</th><th style="width:190px">角色</th><th style="width:90px">廠別</th><th style="width:110px">部門</th><th style="width:90px">移除</th></tr></thead>
         <tbody id="accBody"></tbody>
       </table>
     </div>
@@ -834,7 +834,7 @@ async function refreshAccounts() {
   const body = document.getElementById('accBody');
   body.innerHTML = data.map(a => `
     <tr>
-      <td>${escapeHtml(a.email)}</td>
+      <td style="padding-left:10px;">${escapeHtml(a.email)}</td>
       <td style="vertical-align:middle;">
         <select onchange="updateAccountRole('${a.email}', this.value)" style="width:auto; min-width:150px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>部門負責人</option>
