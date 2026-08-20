@@ -92,6 +92,7 @@
   .w-purpose-wide { width: 22em; }
   .w-note-wide { width: 13.2em; }
   .btn-sm { padding: 6px 14px; font-size: 13px; }
+  #accBody td { vertical-align: middle; padding: 10px; }
   .w-narrow { width: 8em; }
   .w-month { width: 9.6em; }
   .w-tool { width: 11.5em; }
@@ -834,8 +835,8 @@ async function refreshAccounts() {
   body.innerHTML = data.map(a => `
     <tr>
       <td>${escapeHtml(a.email)}</td>
-      <td>
-        <select onchange="updateAccountRole('${a.email}', this.value)" style="padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+      <td style="vertical-align:middle;">
+        <select onchange="updateAccountRole('${a.email}', this.value)" style="width:auto; min-width:150px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
           <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>部門負責人</option>
           <option value="plant_manager" ${a.role === 'plant_manager' ? 'selected' : ''}>廠區管理者</option>
           <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>總管理者</option>
