@@ -917,7 +917,7 @@ async function addAccount() {
 }
 
 async function deleteAccount(email) {
-  if (!confirm(`確定移除 ${email}？這會一併刪除他的登入帳號，無法復原。`)) return;
+  if (!confirm(`確定移除 ${email} 在「統計系統」的權限？\n\n這只會取消他在這個系統的存取權，不會刪除他在 TL_projects 其他系統（wechat-manager、訪談系統等）的登入帳號。`)) return;
   const result = await callAdminFunction({ action: 'delete', email });
   if (result.error) { alert('失敗：' + result.error); return; }
   refreshAccounts();
