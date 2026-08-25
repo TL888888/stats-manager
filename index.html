@@ -81,8 +81,7 @@
   td.col-purpose { max-width: 200px; }
   td.col-token { min-width: 140px; max-width: 240px; }
   td.col-note { max-width: 140px; }
-  .col-action { position: sticky; right: 0; background: #fff; box-shadow: -2px 0 4px rgba(0,0,0,0.06); }
-  th.col-action { background: #e2e8f0; z-index: 6; }
+  .col-action { text-align: center; }
 
   /* ---- 填報表單：兩排、共 10 欄 ---- */
   .form-rows { display: flex; flex-direction: column; gap: 18px; }
@@ -302,8 +301,13 @@
         <button class="btn btn-primary" onclick="runSearch()">🔍 檢索</button>
         <button class="btn btn-outline" onclick="clearSearch()">清除條件</button>
         <div class="result-count">搜尋總筆數：<b id="resultCount">-</b> 筆</div>
+        <div style="margin-left:auto; display:flex; gap:6px;">
+          <button id="viewBtnList" class="btn btn-primary" style="padding:7px 14px; font-size:13px;" onclick="switchResultView('list')">列表</button>
+          <button id="viewBtnChart" class="btn btn-outline" style="padding:7px 14px; font-size:13px;" onclick="switchResultView('chart')">圖表</button>
+        </div>
       </div>
 
+      <div id="resultsListView">
       <div class="table-wrap">
       <table>
         <thead>
@@ -316,6 +320,12 @@
       </table>
       </div>
       <div id="resultsPager" class="btn-row" style="align-items:center; justify-content:flex-end;"></div>
+      </div>
+
+      <div id="resultsChartView" class="hidden">
+        <p style="font-size:13px; color:var(--muted); margin-top:14px;">依目前的搜尋條件，統計各廠別、各部門的填報筆數</p>
+        <div id="chartContainer" style="margin-top:10px;"></div>
+      </div>
     </div>
 
     <!-- 填報 -->
@@ -528,12 +538,14 @@ function enterApp() {
   fillSelect(document.getElementById('editPlan'), PLANS, true);
   fillSelect(document.getElementById('filterPlant'), PLANTS, false);
   document.getElementById('filterPlant').insertAdjacentHTML('afterbegin', '<option value="">全部廠別</option>');
+  document.getElementById('filterPlant').value = '';
   fillSelect(document.getElementById('newAccPlant'), PLANTS, true);
   fillSelect(document.getElementById('newDepartment'), DEPARTMENTS, true);
   fillSelect(document.getElementById('editDepartment'), DEPARTMENTS, true);
   fillSelect(document.getElementById('newAccDept'), DEPARTMENTS, true);
   fillSelect(document.getElementById('filterDept'), DEPARTMENTS, false);
   document.getElementById('filterDept').insertAdjacentHTML('afterbegin', '<option value="">全部部門</option>');
+  document.getElementById('filterDept').value = '';
 
   if (currentRole === 'admin') {
     document.getElementById('tabBtnAdmin').classList.remove('hidden');
@@ -611,6 +623,7 @@ async function runSearch() {
   document.getElementById('resultCount').textContent = lastSearchResults.length;
   resultsPage = 1;
   renderResultsPage();
+  if (currentResultView === 'chart') renderChart();
 }
 
 function rowCellsHtml(r) {
@@ -634,6 +647,70 @@ function renderResultsPage() {
   const pageItems = lastSearchResults.slice(start, start + PAGE_SIZE);
   document.getElementById('resultsBody').innerHTML = pageItems.map(r => `<tr>${rowCellsHtml(r)}</tr>`).join('');
   renderPager('resultsPager', lastSearchResults.length, resultsPage, (p) => { resultsPage = p; renderResultsPage(); });
+}
+
+// ---------- 統計檢視：列表／圖表 切換 ----------
+let currentResultView = 'list';
+
+function switchResultView(view) {
+  currentResultView = view;
+  document.getElementById('resultsListView').classList.toggle('hidden', view !== 'list');
+  document.getElementById('resultsChartView').classList.toggle('hidden', view !== 'chart');
+  document.getElementById('viewBtnList').className = view === 'list' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('viewBtnChart').className = view === 'chart' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('viewBtnList').style.cssText = 'padding:7px 14px; font-size:13px;';
+  document.getElementById('viewBtnChart').style.cssText = 'padding:7px 14px; font-size:13px;';
+  if (view === 'chart') renderChart();
+}
+
+const CHART_COLORS = ['#2563eb', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#a855f7'];
+
+function renderChart() {
+  const container = document.getElementById('chartContainer');
+  if (lastSearchResults.length === 0) {
+    container.innerHTML = `<p style="color:var(--muted); font-size:14px;">目前搜尋條件下沒有資料可以畫圖</p>`;
+    return;
+  }
+
+  // 依廠別 → 部門 分組計數
+  const grouped = {};
+  lastSearchResults.forEach(r => {
+    const plant = r.plant || '未填廠別';
+    const dept = r.department || '未填部門';
+    if (!grouped[plant]) grouped[plant] = {};
+    grouped[plant][dept] = (grouped[plant][dept] || 0) + 1;
+  });
+
+  const plants = Object.keys(grouped).sort((a, b) => PLANTS.indexOf(a) - PLANTS.indexOf(b));
+  const allCounts = Object.values(grouped).flatMap(d => Object.values(d));
+  const maxCount = Math.max(...allCounts, 1);
+
+  container.innerHTML = plants.map(plant => {
+    const depts = Object.entries(grouped[plant]).sort((a, b) => b[1] - a[1]);
+    const plantTotal = depts.reduce((sum, [, c]) => sum + c, 0);
+    const bars = depts.map(([dept, count], i) => {
+      const pct = Math.round((count / maxCount) * 100);
+      const color = CHART_COLORS[i % CHART_COLORS.length];
+      return `
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <div style="width:90px; font-size:13px; color:var(--text); text-align:right; flex-shrink:0;">${escapeHtml(dept)}</div>
+          <div style="flex:1; background:#f1f5f9; border-radius:4px; overflow:hidden; height:22px;">
+            <div style="width:${pct}%; background:${color}; height:100%; border-radius:4px; min-width:2px;"></div>
+          </div>
+          <div style="width:36px; font-size:13px; color:var(--text); font-weight:600;">${count}</div>
+        </div>
+      `;
+    }).join('');
+    return `
+      <div class="card" style="margin-bottom:14px; padding:16px 18px;">
+        <h3 style="margin:0 0 12px 0; display:flex; justify-content:space-between; align-items:center;">
+          <span>${escapeHtml(plant)}</span>
+          <span style="font-size:13px; color:var(--muted); font-weight:normal;">共 ${plantTotal} 筆</span>
+        </h3>
+        ${bars}
+      </div>
+    `;
+  }).join('');
 }
 
 function clearSearch() {
