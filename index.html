@@ -323,7 +323,7 @@
       </div>
 
       <div id="resultsChartView" class="hidden">
-        <p style="font-size:13px; color:var(--muted); margin-top:14px;">依目前的搜尋條件，統計各廠別、各部門的填報筆數</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:14px;">依目前的搜尋條件，統計各部門、各月份的 Token 用量加總</p>
         <div id="chartContainer" style="margin-top:10px;"></div>
       </div>
     </div>
@@ -665,6 +665,12 @@ function switchResultView(view) {
 
 const CHART_COLORS = ['#2563eb', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#a855f7'];
 
+function parseTokenNumber(str) {
+  if (!str) return null;
+  const match = String(str).replace(/,/g, '').match(/\d+/);
+  return match ? parseInt(match[0], 10) : null;
+}
+
 function renderChart() {
   const container = document.getElementById('chartContainer');
   if (lastSearchResults.length === 0) {
@@ -672,40 +678,47 @@ function renderChart() {
     return;
   }
 
-  // 依廠別 → 部門 分組計數
+  // 依部門別 → 月份 分組，加總 Token 用量（只加總看得懂數字的部分，「無法查詢」等文字不計入加總，但會列出筆數提醒）
   const grouped = {};
+  let unparsedCount = 0;
   lastSearchResults.forEach(r => {
-    const plant = r.plant || '未填廠別';
     const dept = r.department || '未填部門';
-    if (!grouped[plant]) grouped[plant] = {};
-    grouped[plant][dept] = (grouped[plant][dept] || 0) + 1;
+    const month = r.report_month || '未填月份';
+    const tokens = parseTokenNumber(r.token_usage);
+    if (tokens === null) { unparsedCount++; }
+    if (!grouped[dept]) grouped[dept] = {};
+    grouped[dept][month] = (grouped[dept][month] || 0) + (tokens || 0);
   });
 
-  const plants = Object.keys(grouped).sort((a, b) => PLANTS.indexOf(a) - PLANTS.indexOf(b));
-  const allCounts = Object.values(grouped).flatMap(d => Object.values(d));
-  const maxCount = Math.max(...allCounts, 1);
+  const depts = Object.keys(grouped).sort((a, b) => DEPARTMENTS.indexOf(a) - DEPARTMENTS.indexOf(b));
+  const allTotals = Object.values(grouped).flatMap(m => Object.values(m));
+  const maxTotal = Math.max(...allTotals, 1);
 
-  container.innerHTML = plants.map(plant => {
-    const depts = Object.entries(grouped[plant]).sort((a, b) => b[1] - a[1]);
-    const plantTotal = depts.reduce((sum, [, c]) => sum + c, 0);
-    const bars = depts.map(([dept, count], i) => {
-      const pct = Math.round((count / maxCount) * 100);
+  const unparsedNote = unparsedCount > 0
+    ? `<p style="font-size:12px; color:var(--muted); margin:6px 0 14px;">有 ${unparsedCount} 筆 Token 用量寫的是文字（例如「無法查詢」），未計入加總</p>`
+    : '';
+
+  container.innerHTML = unparsedNote + depts.map(dept => {
+    const months = Object.entries(grouped[dept]).sort((a, b) => a[0].localeCompare(b[0]));
+    const deptTotal = months.reduce((sum, [, t]) => sum + t, 0);
+    const bars = months.map(([month, total], i) => {
+      const pct = Math.round((total / maxTotal) * 100);
       const color = CHART_COLORS[i % CHART_COLORS.length];
       return `
         <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-          <div style="width:90px; font-size:13px; color:var(--text); text-align:right; flex-shrink:0;">${escapeHtml(dept)}</div>
+          <div style="width:80px; font-size:13px; color:var(--text); text-align:right; flex-shrink:0;">${escapeHtml(month)}</div>
           <div style="flex:1; background:#f1f5f9; border-radius:4px; overflow:hidden; height:22px;">
             <div style="width:${pct}%; background:${color}; height:100%; border-radius:4px; min-width:2px;"></div>
           </div>
-          <div style="width:36px; font-size:13px; color:var(--text); font-weight:600;">${count}</div>
+          <div style="width:70px; font-size:13px; color:var(--text); font-weight:600;">${total.toLocaleString()}</div>
         </div>
       `;
     }).join('');
     return `
       <div class="card" style="margin-bottom:14px; padding:16px 18px;">
         <h3 style="margin:0 0 12px 0; display:flex; justify-content:space-between; align-items:center;">
-          <span>${escapeHtml(plant)}</span>
-          <span style="font-size:13px; color:var(--muted); font-weight:normal;">共 ${plantTotal} 筆</span>
+          <span>${escapeHtml(dept)}</span>
+          <span style="font-size:13px; color:var(--muted); font-weight:normal;">Token 加總：${deptTotal.toLocaleString()}</span>
         </h3>
         ${bars}
       </div>
@@ -806,11 +819,9 @@ function renderAllPage() {
   document.getElementById('allBody').innerHTML = pageItems.map(r => `
     <tr>
       ${rowCellsHtml(r)}
-      <td class="col-action">
-        <div style="display:flex; gap:4px;">
-          <button class="btn btn-outline" style="padding:3px 8px; font-size:11px;" onclick="openEditRecord('${r.id}')">編輯</button>
-          <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteRecord('${r.id}')">刪除</button>
-        </div>
+      <td class="col-action" style="vertical-align:top; white-space:nowrap;">
+        <button class="btn btn-outline" style="padding:3px 8px; font-size:11px; margin-right:4px;" onclick="openEditRecord('${r.id}')">編輯</button>
+        <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteRecord('${r.id}')">刪除</button>
       </td>
     </tr>
   `).join('');
