@@ -70,7 +70,7 @@
   .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 80vh; -webkit-overflow-scrolling: touch; cursor: grab; }
   .table-wrap.dragging { cursor: grabbing; user-select: none; }
   table { border-collapse: collapse; margin-top: 14px; font-size: 15px; width: max-content; min-width: 100%; }
-  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 15px; line-height: 1.6; }
+  th, td { text-align: left; padding: 10px 10px; border: 1px solid var(--border); vertical-align: top; font-size: 15px; line-height: 1.6; }
   th { color: #334155; font-weight: 700; background: #e2e8f0; white-space: nowrap; font-size: 13px; text-align: center; position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 #94a3b8; }
   td { white-space: pre-wrap; word-break: break-word; }
   td.col-narrow { width: 72px; min-width: 72px; }
@@ -100,7 +100,7 @@
   .w-cost { width: 12em; }
   .w-traffic { width: 7.5em; }
   .w-purpose { width: 11em; }
-  .w-token { width: 14em; }
+  .w-token { width: 9em; }
   .w-note { width: 6.6em; }
   .form-row select { padding-right: 6px; }
   .form-row textarea { min-height: 44px; }
@@ -349,7 +349,7 @@
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th><th class="col-action" style="width:90px">操作</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th><th class="col-action" style="width:120px">操作</th>
           </tr>
         </thead>
         <tbody id="allBody"></tbody>
@@ -730,7 +730,7 @@ function renderAllPage() {
     <tr>
       ${rowCellsHtml(r)}
       <td class="col-action">
-        <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; gap:4px;">
           <button class="btn btn-outline" style="padding:3px 8px; font-size:11px;" onclick="openEditRecord('${r.id}')">編輯</button>
           <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteRecord('${r.id}')">刪除</button>
         </div>
