@@ -232,7 +232,7 @@
       <div class="form-rows">
         <div class="form-row">
           <div><label>統計月份</label><input id="editMonth" type="month" class="w-month" /></div>
-          <div><label>廠別</label><select id="editPlant" class="w-narrow"></select></div>
+          <div><label>廠別</label><select id="editPlant" class="w-narrow" onchange="syncDeptForPlant('editPlant','editDepartment')"></select></div>
           <div><label>部門別</label><select id="editDepartment" class="w-narrow"></select></div>
           <div><label>AI 工具名稱</label><input id="editTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
           <div><label>使用方案</label><select id="editPlan" class="w-plan"></select></div>
@@ -241,8 +241,13 @@
           <div><label>方案費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
           <div><label>流量計費(如有另購買，請填寫費用)</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
           <div><label>導入工作應用</label><textarea id="editPurpose" class="w-purpose"></textarea></div>
-          <div><label>Token / 用量數字</label><textarea id="editToken" class="w-token"></textarea></div>
+          <div><label>Token用量</label><textarea id="editToken" class="w-token"></textarea></div>
           <div><label>備註</label><textarea id="editNote" class="w-note"></textarea></div>
+          <div>
+            <label>附件(截圖/PDF)</label>
+            <input id="editAttachment" type="file" accept="image/*,.pdf" class="w-tool" />
+            <div id="editAttachmentCurrent" style="font-size:12px; margin-top:4px;"></div>
+          </div>
         </div>
       </div>
       <div class="btn-row" style="margin-top:10px">
@@ -304,7 +309,7 @@
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th>
           </tr>
         </thead>
         <tbody id="resultsBody"></tbody>
@@ -318,7 +323,7 @@
       <div class="form-rows">
         <div class="form-row">
           <div><label>統計月份</label><input id="newMonth" type="month" class="w-month" /></div>
-          <div><label>廠別</label><select id="newPlant" class="w-narrow"></select></div>
+          <div><label>廠別</label><select id="newPlant" class="w-narrow" onchange="syncDeptForPlant('newPlant','newDepartment')"></select></div>
           <div id="newDeptWrap"><label>部門別</label><select id="newDepartment" class="w-narrow"></select></div>
           <div><label>姓名</label><input id="newSubmitterName" class="w-narrow" placeholder="填表人姓名" /></div>
           <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
@@ -328,7 +333,8 @@
         <div class="form-row">
           <div><label>流量計費(如有另購買，請填寫費用)</label><input id="newTraffic" class="w-traffic" placeholder="填寫費用" /></div>
           <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose-wide"></textarea></div>
-          <div><label>Token / 用量數字<br>（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
+          <div><label>Token用量<br>（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
+          <div><label>上傳Token PDF</label><input id="newAttachment" type="file" accept="image/*,.pdf" class="w-tool" /></div>
           <div><label>備註</label><textarea id="newNote" class="w-note-wide"></textarea></div>
         </div>
       </div>
@@ -343,7 +349,7 @@
         <thead>
           <tr>
             <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
-            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token / 用量數字</th><th>備註</th><th class="col-action" style="width:130px">操作</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th><th class="col-action" style="width:90px">操作</th>
           </tr>
         </thead>
         <tbody id="allBody"></tbody>
@@ -370,7 +376,7 @@
             <option value="admin">總管理者（全部廠別/部門）</option>
           </select>
         </div>
-        <div id="newAccPlantWrap" style="min-width:110px"><label>廠別</label><select id="newAccPlant"></select></div>
+        <div id="newAccPlantWrap" style="min-width:110px"><label>廠別</label><select id="newAccPlant" onchange="syncDeptForPlant('newAccPlant','newAccDept')"></select></div>
         <div id="newAccDeptWrap" style="min-width:130px"><label>部門</label><select id="newAccDept"></select></div>
         <div><label>&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">建立這組登入帳號</button></div>
       </div>
@@ -401,7 +407,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const REPORT_TYPE = 'ai_usage'; // 這個介面固定只處理 AI 用量統計；未來新模組換別的值即可
 
 const DEPARTMENTS = ['企劃室','管理部','財務部','研發中心','營業部','服務部','品保部','資材部','生產部'];
-const PLANTS = ['台灣','南京','漣水'];
+const PLANTS = ['台灣','南京','漣水','碩量'];
+const SINGLE_DEPT_PLANTS = { '碩量': '服務部' }; // 這個廠只有一個部門，選了廠別就不用再挑部門
 const PLANS = ['免費版','月租方案','年繳方案'];
 
 let currentUser = null;
@@ -417,6 +424,20 @@ const PAGE_SIZE = 10;
 function fillSelect(sel, options, includeEmpty) {
   sel.innerHTML = (includeEmpty ? '<option value="">請選擇</option>' : '') +
     options.map(o => `<option value="${o}">${o}</option>`).join('');
+}
+
+// 碩量這個廠只有服務部一個部門，選了廠別就直接鎖定部門、不用再挑
+function syncDeptForPlant(plantSelectId, deptSelectId) {
+  const plantEl = document.getElementById(plantSelectId);
+  const deptEl = document.getElementById(deptSelectId);
+  if (!plantEl || !deptEl || deptEl.tagName !== 'SELECT') return; // 部門欄位若已被鎖成唯讀 input（filler/employee），不用處理
+  const fixedDept = SINGLE_DEPT_PLANTS[plantEl.value];
+  if (fixedDept) {
+    deptEl.value = fixedDept;
+    deptEl.disabled = true;
+  } else {
+    deptEl.disabled = false;
+  }
 }
 
 function renderPager(containerId, totalItems, page, onPageChange) {
@@ -603,6 +624,7 @@ function rowCellsHtml(r) {
     <td class="col-traffic">${escapeHtml(r.traffic_cost)}</td>
     <td class="col-purpose">${escapeHtml(r.purpose)}</td>
     <td class="col-token">${escapeHtml(r.token_usage)}</td>
+    <td class="col-narrow">${r.attachment_url ? `<a href="${r.attachment_url}" target="_blank" rel="noopener">查看</a>` : '-'}</td>
     <td class="col-note">${escapeHtml(r.note)}</td>
   `;
 }
@@ -627,8 +649,33 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 }
 
+// 上傳附件到 stats-attachments 這個儲存空間，回傳公開網址 + 原始檔名
+async function uploadAttachment(fileInputEl) {
+  const file = fileInputEl.files[0];
+  if (!file) return null;
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+  const path = `${crypto.randomUUID()}${ext ? '.' + ext : ''}`;
+  const { error: upErr } = await sb.storage.from('stats-attachments').upload(path, file);
+  if (upErr) throw new Error('附件上傳失敗：' + upErr.message);
+  const { data } = sb.storage.from('stats-attachments').getPublicUrl(path);
+  return { attachment_url: data.publicUrl, attachment_name: file.name };
+}
+
 // ---------- 填報：手動新增 ----------
 async function addRecord() {
+  const msgEl = document.getElementById('addMsg');
+  let attachment = null;
+  const fileInput = document.getElementById('newAttachment');
+  if (fileInput.files.length) {
+    try {
+      msgEl.innerHTML = `<div class="msg ok">上傳附件中...</div>`;
+      attachment = await uploadAttachment(fileInput);
+    } catch (e) {
+      msgEl.innerHTML = `<div class="msg err">${e.message}</div>`;
+      return;
+    }
+  }
+
   const record = {
     report_type: REPORT_TYPE,
     report_month: document.getElementById('newMonth').value.trim(),
@@ -642,9 +689,10 @@ async function addRecord() {
     token_usage: document.getElementById('newToken').value.trim(),
     note: document.getElementById('newNote').value.trim(),
     submitted_by: document.getElementById('newSubmitterName').value.trim() || currentUser.email,
-    created_by_email: currentUser.email
+    created_by_email: currentUser.email,
+    attachment_url: attachment ? attachment.attachment_url : null,
+    attachment_name: attachment ? attachment.attachment_name : null
   };
-  const msgEl = document.getElementById('addMsg');
   if (!record.department || !record.plant) { msgEl.innerHTML = `<div class="msg err">廠別、部門不能空白</div>`; return; }
 
   const { error } = await sb.from('stats_submissions').insert(record);
@@ -652,6 +700,7 @@ async function addRecord() {
 
   msgEl.innerHTML = `<div class="msg ok">新增成功</div>`;
   ['newMonth','newTool','newCost','newTraffic','newPurpose','newToken','newNote','newSubmitterName'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('newAttachment').value = '';
   document.getElementById('newPlan').value = '';
   if (currentRole === 'admin') {
     document.getElementById('newPlant').value = '';
@@ -681,9 +730,9 @@ function renderAllPage() {
     <tr>
       ${rowCellsHtml(r)}
       <td class="col-action">
-        <div style="display:flex; gap:6px;">
-          <button class="btn btn-outline" style="padding:6px 10px; font-size:12px;" onclick="openEditRecord('${r.id}')">編輯</button>
-          <button class="btn btn-danger" style="padding:6px 10px; font-size:12px;" onclick="deleteRecord('${r.id}')">刪除</button>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <button class="btn btn-outline" style="padding:3px 8px; font-size:11px;" onclick="openEditRecord('${r.id}')">編輯</button>
+          <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteRecord('${r.id}')">刪除</button>
         </div>
       </td>
     </tr>
@@ -710,6 +759,7 @@ function openEditRecord(id) {
   document.getElementById('editMonth').value = r.report_month || '';
   document.getElementById('editPlant').value = r.plant || '';
   document.getElementById('editDepartment').value = r.department || '';
+  syncDeptForPlant('editPlant', 'editDepartment');
   document.getElementById('editTool').value = r.tool_name || '';
   document.getElementById('editPlan').value = r.plan_type || '';
   document.getElementById('editCost').value = r.usage_frequency || '';
@@ -782,7 +832,7 @@ async function importExcel() {
       usage_frequency: String(row['方案費用'] || row['使用費用'] || row['使用頻率'] || '').trim(),
       traffic_cost: String(row['流量計費'] || '').trim(),
       purpose: String(row['導入工作應用'] || row['主要用途'] || '').trim(),
-      token_usage: String(row['Token / 用量數字'] || row['Token/用量數字'] || '').trim(),
+      token_usage: String(row['Token用量'] || row['Token / 用量數字'] || row['Token/用量數字'] || '').trim(),
       note: String(row['備註'] || '').trim(),
       submitted_by: String(row['填表人'] || '').trim() || currentUser.email
     })).filter(r => r.department && r.tool_name);
@@ -823,7 +873,7 @@ async function exportExcel() {
     '方案費用': r.usage_frequency || '',
     '流量計費': r.traffic_cost || '',
     '導入工作應用': r.purpose || '',
-    'Token / 用量數字': r.token_usage || '',
+    'Token用量': r.token_usage || '',
     '備註': r.note || ''
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
