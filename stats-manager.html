@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>統計系統 - AI用量統計</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.108.2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --navy: #0f1b33;
+    --blue: #2563eb;
+    --blue-dark: #1d4ed8;
+    --border: #e5e7eb;
+    --bg: #f8fafc;
+    --text: #1f2937;
+    --muted: #6b7280;
+  }
+  * { box-sizing: border-box; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  html, body { overflow-x: hidden; width: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft JhengHei", "PingFang TC", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    background: var(--navy); color: #fff; padding: 14px 24px;
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; row-gap: 8px; position: sticky; top: 0; z-index: 40;
+  }
+  header .title { font-size: 18px; font-weight: 600; white-space: nowrap; }
+  header .title span { color: #9fb4ff; font-weight: normal; font-size: 13px; margin-left: 8px; }
+  header .user-info { display: flex; align-items: center; gap: 16px; font-size: 14px; flex-wrap: wrap; }
+  header .user-info button {
+    background: #b91c1c; color: #fff; border: none; padding: 6px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px;
+  }
+  .container { max-width: 1280px; margin: 20px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 10px; border: 1px solid var(--border); padding: 20px; margin-bottom: 16px; }
+  .toolbar-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs button {
+    padding: 9px 18px; border-radius: 8px; border: 1px solid var(--border);
+    background: #fff; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted);
+  }
+  .tabs button.active { background: var(--blue); color: #fff; border-color: var(--blue); }
+  .excel-actions {
+    display: flex; align-items: center; gap: 8px; font-size: 13px;
+    background: #fff; border: 1px solid var(--border); padding: 8px 10px; border-radius: 8px;
+  }
+  .excel-actions input[type=file] { font-size: 13px; max-width: 190px; color: var(--muted); }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; white-space: nowrap; }
+  input, textarea, select {
+    padding: 9px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 14px; font-family: inherit; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 56px; word-break: break-word; }
+  .btn { padding: 9px 18px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px; font-weight: 600; white-space: nowrap; }
+  .btn-primary { background: var(--blue); color: #fff; }
+  .btn-primary:hover { background: var(--blue-dark); }
+  .btn-outline { background: #fff; border: 1px solid var(--border); color: var(--text); }
+  .btn-danger { background: #fee2e2; color: #b91c1c; border: none; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: 80vh; -webkit-overflow-scrolling: touch; cursor: grab; }
+  .table-wrap.dragging { cursor: grabbing; user-select: none; }
+  table { border-collapse: collapse; margin-top: 14px; font-size: 15px; width: max-content; min-width: 100%; }
+  th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); vertical-align: top; font-size: 15px; line-height: 1.6; }
+  th { color: #334155; font-weight: 700; background: #e2e8f0; white-space: nowrap; font-size: 13px; text-align: center; position: sticky; top: 0; z-index: 5; box-shadow: 0 2px 0 #94a3b8; }
+  td { white-space: pre-wrap; word-break: break-word; }
+  td.col-narrow { width: 72px; min-width: 72px; }
+  td.col-tool { min-width: 110px; }
+  td.col-plan { min-width: 100px; }
+  td.col-cost { min-width: 120px; }
+  td.col-traffic { min-width: 90px; }
+  td.col-purpose { max-width: 200px; }
+  td.col-token { min-width: 140px; max-width: 240px; }
+  td.col-note { max-width: 140px; }
+  .col-action { position: sticky; right: 0; background: #fff; box-shadow: -2px 0 4px rgba(0,0,0,0.06); }
+  th.col-action { background: #e2e8f0; z-index: 6; }
+
+  /* ---- 填報表單：兩排、共 10 欄 ---- */
+  .form-rows { display: flex; flex-direction: column; gap: 18px; }
+  .form-row { display: flex; gap: 18px; flex-wrap: wrap; align-items: flex-start; }
+  .form-row > div { display: flex; flex-direction: column; }
+  .form-row label { margin-bottom: 6px; text-align: center; min-height: 34px; display: flex; align-items: flex-end; justify-content: center; line-height: 1.3; }
+  .w-purpose-wide { width: 22em; }
+  .w-note-wide { width: 13.2em; }
+  .btn-sm { padding: 6px 14px; font-size: 13px; }
+  #accBody td { vertical-align: middle; padding: 10px; }
+  .w-narrow { width: 8em; }
+  .w-month { width: 9.6em; }
+  .w-tool { width: 11.5em; }
+  .w-plan { width: 8.5em; }
+  .w-cost { width: 12em; }
+  .w-traffic { width: 7.5em; }
+  .w-purpose { width: 11em; }
+  .w-token { width: 14em; }
+  .w-note { width: 6.6em; }
+  .form-row select { padding-right: 6px; }
+  .form-row textarea { min-height: 44px; }
+
+  .search-big { font-size: 16px; padding: 14px 16px; }
+  .result-count { font-size: 13px; color: var(--muted); margin: 0; white-space: nowrap; }
+  .result-count b { color: var(--text); font-size: 15px; }
+  .hidden { display: none !important; }
+  .msg { display: inline-block; padding: 8px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; }
+  .msg.ok { background: #dcfce7; color: #166534; }
+  .msg.err { background: #fee2e2; color: #b91c1c; }
+  .login-box { max-width: 360px; margin: 100px auto; background: #fff; padding: 30px; border-radius: 10px; border: 1px solid var(--border); }
+  .login-box h2 { margin-top: 0; font-size: 18px; }
+  .role-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; background: #e0e7ff; color: #3730a3; margin-left: 6px; }
+  h3 { font-size: 15px; font-weight: 600; }
+  .search-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+  .search-row-keyword { flex: 2; min-width: 220px; }
+  .search-row-item { min-width: 130px; }
+  .search-btn-row { align-items: center; }
+  @media (max-width: 640px) {
+    header { position: relative; }
+    header .user-info button#logoutBtn { position: absolute; top: 10px; right: 14px; }
+    .container { padding: 0 6px; }
+    .card { padding: 14px 10px; }
+    th, td { padding: 10px 6px; }
+    .search-row { flex-direction: column; }
+    .search-row-keyword { width: 100%; }
+    .search-btn-row .btn { font-size: 12px; padding: 7px 12px; }
+    .search-btn-row { gap: 8px; }
+    .result-count { font-size: 12px; }
+    .form-row > div { flex: 1 1 45%; }
+    .form-row > div input, .form-row > div select, .form-row > div textarea { width: 100% !important; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login-box">
+  <h2>統計系統</h2>
+  <label>Email</label>
+  <input id="loginEmail" type="email" placeholder="you@tlhome.com.tw" />
+  <div style="height:10px"></div>
+  <label>密碼</label>
+  <input id="loginPassword" type="password" />
+  <div id="monkeyToggle" style="display:flex; flex-direction:column; align-items:center; margin-top:8px;">
+    <button type="button" onclick="toggleMonkey()" style="background:none; border:none; cursor:pointer; padding:4px; transition:transform 0.2s;" onmouseover="this.style.transform='scale(1.15)'" onmouseout="this.style.transform='scale(1)'">
+      <svg id="monkeySvg" width="56" height="64" viewBox="0 0 72 80">
+        <circle cx="9" cy="36" r="9" fill="#c8853a"/>
+        <circle cx="9" cy="36" r="5.5" fill="#e8a96a"/>
+        <circle cx="63" cy="36" r="9" fill="#c8853a"/>
+        <circle cx="63" cy="36" r="5.5" fill="#e8a96a"/>
+        <ellipse cx="36" cy="62" rx="16" ry="14" fill="#c8853a"/>
+        <ellipse cx="36" cy="64" rx="9" ry="9" fill="#e8a96a"/>
+        <ellipse cx="36" cy="28" rx="21" ry="21" fill="#c8853a"/>
+        <ellipse cx="36" cy="32" rx="14" ry="11" fill="#e8a96a"/>
+        <ellipse cx="36" cy="35" rx="4.5" ry="3.5" fill="#b06828"/>
+        <circle cx="34" cy="35" r="1.4" fill="#7a3f10"/>
+        <circle cx="38" cy="35" r="1.4" fill="#7a3f10"/>
+        <path id="mkMouthN" d="M30 40 Q36 43 42 40" stroke="#7a3f10" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <path id="mkMouthS" d="M30 40 Q36 46 42 40" stroke="#7a3f10" stroke-width="1.8" fill="none" stroke-linecap="round" style="display:none"/>
+        <g id="mkEyes" style="display:none">
+          <circle cx="26" cy="26" r="5.5" fill="white"/>
+          <circle cx="46" cy="26" r="5.5" fill="white"/>
+          <circle cx="26" cy="27" r="3.2" fill="#3a2010"/>
+          <circle cx="46" cy="27" r="3.2" fill="#3a2010"/>
+          <circle cx="27" cy="26" r="1.2" fill="white"/>
+          <circle cx="47" cy="26" r="1.2" fill="white"/>
+        </g>
+        <g id="mkHands">
+          <ellipse cx="18" cy="24" rx="9" ry="7" fill="#c8853a" transform="rotate(-20,18,24)"/>
+          <circle cx="11" cy="20" r="4" fill="#c8853a"/>
+          <circle cx="15" cy="18" r="4" fill="#c8853a"/>
+          <circle cx="19" cy="17" r="4" fill="#c8853a"/>
+          <circle cx="23" cy="19" r="4" fill="#c8853a"/>
+          <ellipse cx="54" cy="24" rx="9" ry="7" fill="#c8853a" transform="rotate(20,54,24)"/>
+          <circle cx="61" cy="20" r="4" fill="#c8853a"/>
+          <circle cx="57" cy="18" r="4" fill="#c8853a"/>
+          <circle cx="53" cy="17" r="4" fill="#c8853a"/>
+          <circle cx="49" cy="19" r="4" fill="#c8853a"/>
+        </g>
+        <g id="mkBanana" style="display:none">
+          <path d="M50 56 Q64 48 66 36" stroke="#c8853a" stroke-width="8" fill="none" stroke-linecap="round"/>
+          <path d="M60 16 Q75 22 72 38 Q70 46 64 43 Q52 38 55 22 Q57 14 60 16Z" fill="#f5d020"/>
+          <path d="M60 16 Q58 11 61 10" stroke="#8b6914" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path d="M72 38 Q76 43 74 46" stroke="#8b6914" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+          <path d="M62 18 Q73 24 70 36" stroke="rgba(255,255,255,0.5)" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </button>
+    <div id="mkLabel" style="font-size:11px; color:var(--muted); margin-top:2px;">點我顯示密碼</div>
+  </div>
+  <div style="display:flex; align-items:center; gap:6px; margin-top:10px;">
+    <input id="rememberEmail" type="checkbox" style="width:15px; height:15px; cursor:pointer;" />
+    <label for="rememberEmail" style="font-size:12px; color:var(--muted); cursor:pointer; margin-bottom:0;">記住我的帳號（只記帳號，密碼每次都要輸入）</label>
+  </div>
+  <div class="btn-row">
+    <button class="btn btn-primary" style="width:100%" onclick="doLogin()">登入</button>
+  </div>
+  <div id="loginMsg"></div>
+</div>
+
+<div id="appView" class="hidden">
+  <header>
+    <div class="title">統計系統 <span>AI用量統計</span></div>
+    <div class="user-info">
+      <span id="userEmailLabel"></span>
+      <a href="javascript:void(0)" onclick="togglePwdBox()" style="color:#cbd5e1; font-size:13px; text-decoration:underline;">修改密碼</a>
+      <button onclick="doLogout()" id="logoutBtn">登出</button>
+    </div>
+  </header>
+
+  <div id="pwdBox" class="hidden" style="position:fixed; inset:0; background:rgba(15,27,51,0.4); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding-top:80px;">
+    <div class="card" style="max-width:360px; width:90%; padding:20px 22px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+      <h3 style="margin-top:0">修改密碼</h3>
+      <label>新密碼</label><input id="newPassword1" type="password" placeholder="至少 6 碼" />
+      <div style="height:10px"></div>
+      <label>再輸入一次</label><input id="newPassword2" type="password" />
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-primary" onclick="changePassword()">更新密碼</button>
+        <button class="btn btn-outline" onclick="togglePwdBox()">取消</button>
+      </div>
+      <div id="pwdMsg"></div>
+    </div>
+  </div>
+
+  <div id="editBox" class="hidden" style="position:fixed; inset:0; background:rgba(15,27,51,0.4); z-index:50; display:flex; align-items:flex-start; justify-content:center; padding-top:60px; overflow-y:auto;">
+    <div class="card" style="max-width:560px; width:92%; padding:20px 22px; box-shadow:0 10px 30px rgba(0,0,0,0.2); margin-bottom:40px;">
+      <h3 style="margin-top:0">編輯這筆紀錄</h3>
+      <div class="form-rows">
+        <div class="form-row">
+          <div><label>統計月份</label><input id="editMonth" type="month" class="w-month" /></div>
+          <div><label>廠別</label><select id="editPlant" class="w-narrow" onchange="syncDeptForPlant('editPlant','editDepartment')"></select></div>
+          <div><label>部門別</label><select id="editDepartment" class="w-narrow"></select></div>
+          <div><label>AI 工具名稱</label><input id="editTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
+          <div><label>使用方案</label><select id="editPlan" class="w-plan"></select></div>
+        </div>
+        <div class="form-row">
+          <div><label>方案費用</label><input id="editCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
+          <div><label>流量計費(如有另購買，請填寫費用)</label><input id="editTraffic" class="w-traffic" placeholder="請填每月流量計費費用" /></div>
+          <div><label>導入工作應用</label><textarea id="editPurpose" class="w-purpose"></textarea></div>
+          <div><label>Token用量</label><textarea id="editToken" class="w-token"></textarea></div>
+          <div><label>備註</label><textarea id="editNote" class="w-note"></textarea></div>
+          <div>
+            <label>附件(截圖/PDF)</label>
+            <input id="editAttachment" type="file" accept="image/*,.pdf" class="w-tool" />
+            <div id="editAttachmentCurrent" style="font-size:12px; margin-top:4px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-primary" onclick="saveEditRecord()">儲存</button>
+        <button class="btn btn-outline" onclick="closeEditRecord()">取消</button>
+      </div>
+      <div id="editMsg"></div>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="toolbar-row">
+      <div class="tabs">
+        <button id="tabBtnQuery" class="active" onclick="switchTab('query')">統計檢視</button>
+        <button id="tabBtnInput" onclick="switchTab('input')">填報</button>
+        <button id="tabBtnAdmin" class="hidden" onclick="switchTab('admin')">帳號管理</button>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <div id="addButtonToolbar" class="hidden">
+          <button class="btn btn-primary" onclick="addRecord()">新增這筆</button>
+        </div>
+        <div id="excelActions" class="excel-actions hidden">
+          <input id="excelFile" type="file" accept=".xlsx,.xls" title="選擇 Excel 檔" />
+          <button class="btn btn-primary" onclick="importExcel()">匯入（累加新增）</button>
+          <button class="btn btn-outline" onclick="exportExcel()">匯出</button>
+        </div>
+      </div>
+    </div>
+    <div id="importMsg"></div>
+
+    <!-- 統計檢視 -->
+    <div id="queryTab" class="card">
+      <div class="search-row">
+        <div class="search-row-keyword">
+          <label>模糊搜尋（工具名稱 / 導入工作應用 / 備註）</label>
+          <input id="searchBox" class="search-big" placeholder="輸入關鍵字" onkeydown="if(event.key==='Enter') runSearch()" />
+        </div>
+        <div id="deptFilterWrap" class="search-row-item hidden">
+          <label>部門別</label>
+          <select id="filterDept"><option value="">全部部門</option></select>
+        </div>
+        <div class="search-row-item">
+          <label>廠別</label>
+          <select id="filterPlant"><option value="">全部廠別</option></select>
+        </div>
+        <div class="search-row-item">
+          <label>統計月份</label>
+          <input id="filterMonth" type="month" />
+        </div>
+      </div>
+      <div class="btn-row search-btn-row">
+        <button class="btn btn-primary" onclick="runSearch()">🔍 檢索</button>
+        <button class="btn btn-outline" onclick="clearSearch()">清除條件</button>
+        <div class="result-count">搜尋總筆數：<b id="resultCount">-</b> 筆</div>
+      </div>
+
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody"></tbody>
+      </table>
+      </div>
+      <div id="resultsPager" class="btn-row" style="align-items:center; justify-content:flex-end;"></div>
+    </div>
+
+    <!-- 填報 -->
+    <div id="inputTab" class="card hidden">
+      <div class="form-rows">
+        <div class="form-row">
+          <div><label>統計月份</label><input id="newMonth" type="month" class="w-month" /></div>
+          <div><label>廠別</label><select id="newPlant" class="w-narrow" onchange="syncDeptForPlant('newPlant','newDepartment')"></select></div>
+          <div id="newDeptWrap"><label>部門別</label><select id="newDepartment" class="w-narrow"></select></div>
+          <div><label>姓名</label><input id="newSubmitterName" class="w-narrow" placeholder="填表人姓名" /></div>
+          <div><label>AI 工具名稱</label><input id="newTool" class="w-tool" placeholder="Claude, Gemini, Kimi..." /></div>
+          <div><label>使用方案</label><select id="newPlan" class="w-plan"></select></div>
+          <div><label>方案費用</label><input id="newCost" class="w-cost" placeholder="請輸入每月費用，或年繳費用" /></div>
+        </div>
+        <div class="form-row">
+          <div><label>流量計費(如有另購買，請填寫費用)</label><input id="newTraffic" class="w-traffic" placeholder="填寫費用" /></div>
+          <div><label>導入工作應用</label><textarea id="newPurpose" class="w-purpose-wide"></textarea></div>
+          <div><label>Token用量<br>（查不到請填「無法查詢」）</label><textarea id="newToken" class="w-token"></textarea></div>
+          <div><label>上傳Token PDF</label><input id="newAttachment" type="file" accept="image/*,.pdf" class="w-tool" /></div>
+          <div><label>備註</label><textarea id="newNote" class="w-note-wide"></textarea></div>
+        </div>
+      </div>
+
+      <div id="addMsg"></div>
+
+      <hr style="margin:24px 0; border:none; border-top:1px solid var(--border)" />
+
+      <h3 id="allCountLabel">本部門目前資料（<span id="allCount">-</span> 筆，最新在上）</h3>
+      <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>統計月份</th><th>廠別</th><th>部門別</th><th>AI 工具名稱</th><th>使用方案</th>
+            <th>方案費用</th><th>流量計費</th><th>導入工作應用</th><th>Token用量</th><th>附件</th><th>備註</th><th class="col-action" style="width:90px">操作</th>
+          </tr>
+        </thead>
+        <tbody id="allBody"></tbody>
+      </table>
+      </div>
+      <div id="allPager" class="btn-row" style="align-items:center; justify-content:flex-end;"></div>
+    </div>
+
+    <!-- 帳號管理 (admin only) -->
+    <div id="adminTab" class="card hidden">
+      <h3 style="margin-top:0">新增登入帳號</h3>
+      <p style="font-size:13px; color:var(--muted)">
+        這裡會直接建立一組可登入的 email + 密碼，同時設定角色、廠別與部門，不用再去 Supabase 後台手動建。部門選單跟填報表單共用同一份清單，避免打字不一致造成資料兜不起來。
+      </p>
+      <div class="form-row" style="align-items:flex-end; gap:12px; margin-bottom:0;">
+        <div style="min-width:200px"><label>Email</label><input id="newAccEmail" placeholder="name@tlhome.com.tw" /></div>
+        <div style="min-width:180px"><label>初始密碼（已有帳號者留空）</label><input id="newAccPassword" type="text" placeholder="留空＝沿用既有帳號" /></div>
+        <div style="min-width:190px">
+          <label>角色</label>
+          <select id="newAccRole" onchange="toggleAccDeptField()">
+            <option value="employee">員工（僅自己填報的資料）</option>
+            <option value="filler">部門主管（自己部門全部資料）</option>
+            <option value="plant_manager">廠區管理者（該廠全部部門）</option>
+            <option value="admin">總管理者（全部廠別/部門）</option>
+          </select>
+        </div>
+        <div id="newAccPlantWrap" style="min-width:110px"><label>廠別</label><select id="newAccPlant" onchange="syncDeptForPlant('newAccPlant','newAccDept')"></select></div>
+        <div id="newAccDeptWrap" style="min-width:130px"><label>部門</label><select id="newAccDept"></select></div>
+        <div><label>&nbsp;</label><button class="btn btn-primary" onclick="addAccount()">建立這組登入帳號</button></div>
+      </div>
+      <div id="accMsg" style="margin-top:8px;"></div>
+
+      <hr style="margin:18px 0; border:none; border-top:1px solid var(--border)" />
+
+      <h3 style="margin:0 0 8px 0;">目前所有帳號</h3>
+      <table style="table-layout:fixed; width:auto;">
+        <thead><tr><th style="width:260px; text-align:left; padding-left:10px;">Email</th><th style="width:190px">角色</th><th style="width:90px">廠別</th><th style="width:110px">部門</th><th style="width:90px">移除</th></tr></thead>
+        <tbody id="accBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// 設定區：跟訪談系統共用同一個 TL_projects 專案，值不用改。
+// SUPABASE_ANON_KEY 是「匿名公開金鑰」，設計上就是給前端網頁用的，
+// 搭配 RLS 規則就是安全的，不是要保密的 service_role key。
+// ============================================================
+const SUPABASE_URL = 'https://bvuygyajzupeqpqfwmgi.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2dXlneWFqenVwZXFwcWZ3bWdpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNjA5MjQsImV4cCI6MjA5NzczNjkyNH0.zvP-JWgHRWiCKZbqSSU6-uGgx3WHwG0nFxfG8xDhEH8';
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const REPORT_TYPE = 'ai_usage'; // 這個介面固定只處理 AI 用量統計；未來新模組換別的值即可
+
+const DEPARTMENTS = ['企劃室','管理部','財務部','研發中心','營業部','服務部','品保部','資材部','生產部'];
+const PLANTS = ['台灣','南京','漣水','碩量'];
+const SINGLE_DEPT_PLANTS = { '碩量': '服務部' }; // 這個廠只有一個部門，選了廠別就不用再挑部門
+const PLANS = ['免費版','月租方案','年繳方案'];
+
+let currentUser = null;
+let currentRole = null;
+let currentDepartment = null;
+let currentPlant = null;
+let lastSearchResults = [];
+let resultsPage = 1;
+let allRecordsData = [];
+let allPage = 1;
+const PAGE_SIZE = 10;
+
+function fillSelect(sel, options, includeEmpty) {
+  sel.innerHTML = (includeEmpty ? '<option value="">請選擇</option>' : '') +
+    options.map(o => `<option value="${o}">${o}</option>`).join('');
+}
+
+// 碩量這個廠只有服務部一個部門，選了廠別就直接鎖定部門、不用再挑
+function syncDeptForPlant(plantSelectId, deptSelectId) {
+  const plantEl = document.getElementById(plantSelectId);
+  const deptEl = document.getElementById(deptSelectId);
+  if (!plantEl || !deptEl || deptEl.tagName !== 'SELECT') return; // 部門欄位若已被鎖成唯讀 input（filler/employee），不用處理
+  const fixedDept = SINGLE_DEPT_PLANTS[plantEl.value];
+  if (fixedDept) {
+    deptEl.value = fixedDept;
+    deptEl.disabled = true;
+  } else {
+    deptEl.disabled = false;
+  }
+}
+
+function renderPager(containerId, totalItems, page, onPageChange) {
+  const el = document.getElementById(containerId);
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  if (totalItems === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="btn btn-outline" ${page <= 1 ? 'disabled' : ''} id="${containerId}Prev">上一頁</button>
+    <span style="font-size:13px; color:var(--muted); padding:0 6px;">第 ${page} / ${totalPages} 頁</span>
+    <button class="btn btn-outline" ${page >= totalPages ? 'disabled' : ''} id="${containerId}Next">下一頁</button>
+  `;
+  if (page > 1) document.getElementById(containerId + 'Prev').onclick = () => onPageChange(page - 1);
+  if (page < totalPages) document.getElementById(containerId + 'Next').onclick = () => onPageChange(page + 1);
+}
+
+// ---------- 登入 / 登出 ----------
+var mkShowing = false;
+function toggleMonkey() {
+  mkShowing = !mkShowing;
+  document.getElementById('loginPassword').type = mkShowing ? 'text' : 'password';
+  document.getElementById('mkHands').style.display = mkShowing ? 'none' : '';
+  document.getElementById('mkEyes').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkBanana').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkMouthS').style.display = mkShowing ? '' : 'none';
+  document.getElementById('mkMouthN').style.display = mkShowing ? 'none' : '';
+  document.getElementById('mkLabel').textContent = mkShowing ? '點我隱藏密碼' : '點我顯示密碼';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const msgEl = document.getElementById('loginMsg');
+  msgEl.innerHTML = '';
+
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if (error) {
+    msgEl.innerHTML = `<div class="msg err">登入失敗：${error.message}</div>`;
+    return;
+  }
+
+  const { data: access, error: accessErr } = await sb
+    .from('stats_access')
+    .select('role, department, plant')
+    .eq('email', email)
+    .maybeSingle();
+
+  if (accessErr || !access) {
+    msgEl.innerHTML = `<div class="msg err">此帳號未授權使用本系統，請聯絡管理員開通。</div>`;
+    await sb.auth.signOut();
+    return;
+  }
+
+  currentUser = data.user;
+  currentRole = access.role;
+  currentDepartment = access.department;
+  currentPlant = access.plant;
+
+  if (document.getElementById('rememberEmail').checked) {
+    localStorage.setItem('stats_manager_remembered_email', email);
+  } else {
+    localStorage.removeItem('stats_manager_remembered_email');
+  }
+
+  enterApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function enterApp() {
+  document.getElementById('tabBtnAdmin').classList.add('hidden');
+  document.getElementById('excelActions').classList.add('hidden');
+  document.getElementById('addButtonToolbar').classList.add('hidden');
+  document.getElementById('deptFilterWrap').classList.add('hidden');
+
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('appView').classList.remove('hidden');
+  const roleLabel = { admin: '總管理者', plant_manager: '廠區管理者', filler: '部門主管', employee: '員工' }[currentRole] || currentRole;
+  document.getElementById('userEmailLabel').innerHTML =
+    currentUser.email + `<span class="role-badge">${roleLabel}${currentPlant ? '・' + escapeHtml(currentPlant) : ''}${currentDepartment ? '・' + escapeHtml(currentDepartment) : ''}</span>`;
+
+  // 下拉選單初始化
+  fillSelect(document.getElementById('newPlant'), PLANTS, true);
+  fillSelect(document.getElementById('newPlan'), PLANS, true);
+  fillSelect(document.getElementById('editPlant'), PLANTS, true);
+  fillSelect(document.getElementById('editPlan'), PLANS, true);
+  fillSelect(document.getElementById('filterPlant'), PLANTS, false);
+  document.getElementById('filterPlant').insertAdjacentHTML('afterbegin', '<option value="">全部廠別</option>');
+  fillSelect(document.getElementById('newAccPlant'), PLANTS, true);
+  fillSelect(document.getElementById('newDepartment'), DEPARTMENTS, true);
+  fillSelect(document.getElementById('editDepartment'), DEPARTMENTS, true);
+  fillSelect(document.getElementById('newAccDept'), DEPARTMENTS, true);
+  fillSelect(document.getElementById('filterDept'), DEPARTMENTS, false);
+  document.getElementById('filterDept').insertAdjacentHTML('afterbegin', '<option value="">全部部門</option>');
+
+  if (currentRole === 'admin') {
+    document.getElementById('tabBtnAdmin').classList.remove('hidden');
+    document.getElementById('deptFilterWrap').classList.remove('hidden');
+    document.getElementById('allCountLabel').innerHTML = '全部廠別/部門目前資料（<span id="allCount">-</span> 筆，最新在上）';
+  } else if (currentRole === 'plant_manager') {
+    // 廠區管理者：廠別鎖定成自己的廠，部門可以自由選（整廠都能填/看）
+    document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
+    document.getElementById('deptFilterWrap').classList.remove('hidden');
+    const plantWrap = document.getElementById('newPlant').closest('div');
+    plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    document.getElementById('allCountLabel').innerHTML = `${escapeHtml(currentPlant || '')}全部部門目前資料（<span id="allCount">-</span> 筆，最新在上）`;
+  } else if (currentRole === 'filler') {
+    // 部門主管：廠別、部門都鎖定成自己的帳號設定；看得到整個部門的資料
+    document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
+    const plantWrap = document.getElementById('newPlant').closest('div');
+    plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    const wrap = document.getElementById('newDeptWrap');
+    wrap.innerHTML = `<label>部門別</label><input value="${escapeHtml(currentDepartment || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    document.getElementById('allCountLabel').innerHTML = `${escapeHtml(currentDepartment || '')}部門目前資料（<span id="allCount">-</span> 筆，最新在上）`;
+  } else {
+    // 員工：廠別、部門都鎖定，且只看得到自己填的那幾筆（由資料庫權限規則限制，前端只是同步顯示文字）
+    document.getElementById('filterPlant').closest('.search-row-item').classList.add('hidden');
+    const plantWrap = document.getElementById('newPlant').closest('div');
+    plantWrap.innerHTML = `<label>廠別</label><input value="${escapeHtml(currentPlant || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    const wrap = document.getElementById('newDeptWrap');
+    wrap.innerHTML = `<label>部門別</label><input value="${escapeHtml(currentDepartment || '')}" class="w-narrow" readonly style="background:#f1f5f9;" />`;
+    document.getElementById('allCountLabel').innerHTML = '我的填報紀錄（<span id="allCount">-</span> 筆，最新在上）';
+  }
+
+  runSearch();
+  refreshAllRecords();
+  if (currentRole === 'admin') refreshAccounts();
+}
+
+// ---------- Tab 切換 ----------
+function switchTab(tab) {
+  ['query', 'input', 'admin'].forEach(t => {
+    document.getElementById(t + 'Tab').classList.toggle('hidden', t !== tab);
+    document.getElementById('tabBtn' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+  });
+  document.getElementById('excelActions').classList.toggle('hidden', !(tab === 'input' && currentRole === 'admin'));
+  document.getElementById('addButtonToolbar').classList.toggle('hidden', tab !== 'input');
+}
+
+function togglePwdBox() {
+  document.getElementById('pwdBox').classList.toggle('hidden');
+  document.getElementById('newPassword1').value = '';
+  document.getElementById('newPassword2').value = '';
+  document.getElementById('pwdMsg').innerHTML = '';
+}
+
+// ---------- 統計檢視（查詢） ----------
+async function runSearch() {
+  const keyword = document.getElementById('searchBox').value.trim();
+  const month = document.getElementById('filterMonth').value.trim();
+  const plant = document.getElementById('filterPlant').value;
+  const dept = (currentRole === 'admin' || currentRole === 'plant_manager') ? document.getElementById('filterDept').value : '';
+
+  let query = sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('created_at', { ascending: false });
+
+  if (month) query = query.eq('report_month', month);
+  if (plant) query = query.eq('plant', plant);
+  if (dept) query = query.eq('department', dept);
+  if (keyword) {
+    const like = `%${keyword}%`;
+    query = query.or(`tool_name.ilike.${like},purpose.ilike.${like},note.ilike.${like}`);
+  }
+  // filler 的可視範圍已經由 RLS 限制在自己部門，這裡不用再加條件
+
+  const { data, error } = await query;
+  if (error) { alert('搜尋失敗：' + error.message); return; }
+
+  lastSearchResults = data || [];
+  document.getElementById('resultCount').textContent = lastSearchResults.length;
+  resultsPage = 1;
+  renderResultsPage();
+}
+
+function rowCellsHtml(r) {
+  return `
+    <td class="col-narrow">${escapeHtml(r.report_month)}</td>
+    <td class="col-narrow">${escapeHtml(r.plant)}</td>
+    <td class="col-narrow">${escapeHtml(r.department)}</td>
+    <td class="col-tool">${escapeHtml(r.tool_name)}</td>
+    <td class="col-plan">${escapeHtml(r.plan_type)}</td>
+    <td class="col-cost">${escapeHtml(r.usage_frequency)}</td>
+    <td class="col-traffic">${escapeHtml(r.traffic_cost)}</td>
+    <td class="col-purpose">${escapeHtml(r.purpose)}</td>
+    <td class="col-token">${escapeHtml(r.token_usage)}</td>
+    <td class="col-narrow">${r.attachment_url ? `<a href="${r.attachment_url}" target="_blank" rel="noopener">查看</a>` : '-'}</td>
+    <td class="col-note">${escapeHtml(r.note)}</td>
+  `;
+}
+
+function renderResultsPage() {
+  const start = (resultsPage - 1) * PAGE_SIZE;
+  const pageItems = lastSearchResults.slice(start, start + PAGE_SIZE);
+  document.getElementById('resultsBody').innerHTML = pageItems.map(r => `<tr>${rowCellsHtml(r)}</tr>`).join('');
+  renderPager('resultsPager', lastSearchResults.length, resultsPage, (p) => { resultsPage = p; renderResultsPage(); });
+}
+
+function clearSearch() {
+  document.getElementById('searchBox').value = '';
+  document.getElementById('filterMonth').value = '';
+  document.getElementById('filterPlant').value = '';
+  if (currentRole === 'admin') document.getElementById('filterDept').value = '';
+  runSearch();
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// 上傳附件到 stats-attachments 這個儲存空間，回傳公開網址 + 原始檔名
+async function uploadAttachment(fileInputEl) {
+  const file = fileInputEl.files[0];
+  if (!file) return null;
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+  const path = `${crypto.randomUUID()}${ext ? '.' + ext : ''}`;
+  const { error: upErr } = await sb.storage.from('stats-attachments').upload(path, file);
+  if (upErr) throw new Error('附件上傳失敗：' + upErr.message);
+  const { data } = sb.storage.from('stats-attachments').getPublicUrl(path);
+  return { attachment_url: data.publicUrl, attachment_name: file.name };
+}
+
+// ---------- 填報：手動新增 ----------
+async function addRecord() {
+  const msgEl = document.getElementById('addMsg');
+  let attachment = null;
+  const fileInput = document.getElementById('newAttachment');
+  if (fileInput.files.length) {
+    try {
+      msgEl.innerHTML = `<div class="msg ok">上傳附件中...</div>`;
+      attachment = await uploadAttachment(fileInput);
+    } catch (e) {
+      msgEl.innerHTML = `<div class="msg err">${e.message}</div>`;
+      return;
+    }
+  }
+
+  const record = {
+    report_type: REPORT_TYPE,
+    report_month: document.getElementById('newMonth').value.trim(),
+    plant: currentRole === 'admin' ? document.getElementById('newPlant').value : currentPlant,
+    department: (currentRole === 'filler' || currentRole === 'employee') ? currentDepartment : document.getElementById('newDepartment').value,
+    tool_name: document.getElementById('newTool').value.trim(),
+    plan_type: document.getElementById('newPlan').value,
+    usage_frequency: document.getElementById('newCost').value.trim(),
+    traffic_cost: document.getElementById('newTraffic').value.trim(),
+    purpose: document.getElementById('newPurpose').value.trim(),
+    token_usage: document.getElementById('newToken').value.trim(),
+    note: document.getElementById('newNote').value.trim(),
+    submitted_by: document.getElementById('newSubmitterName').value.trim() || currentUser.email,
+    created_by_email: currentUser.email,
+    attachment_url: attachment ? attachment.attachment_url : null,
+    attachment_name: attachment ? attachment.attachment_name : null
+  };
+  if (!record.department || !record.plant) { msgEl.innerHTML = `<div class="msg err">廠別、部門不能空白</div>`; return; }
+
+  const { error } = await sb.from('stats_submissions').insert(record);
+  if (error) { msgEl.innerHTML = `<div class="msg err">新增失敗：${error.message}</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">新增成功</div>`;
+  ['newMonth','newTool','newCost','newTraffic','newPurpose','newToken','newNote','newSubmitterName'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('newAttachment').value = '';
+  document.getElementById('newPlan').value = '';
+  if (currentRole === 'admin') {
+    document.getElementById('newPlant').value = '';
+    document.getElementById('newDepartment').value = '';
+  } else if (currentRole === 'plant_manager') {
+    document.getElementById('newDepartment').value = '';
+  }
+  refreshAllRecords();
+  runSearch();
+}
+
+async function refreshAllRecords() {
+  let query = sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('created_at', { ascending: false });
+  const { data, error } = await query;
+  if (error) return;
+  allRecordsData = data || []; // filler 已經被 RLS 限制在自己部門，admin 看得到全部
+  document.getElementById('allCount').textContent = allRecordsData.length;
+  allPage = 1;
+  renderAllPage();
+}
+
+function renderAllPage() {
+  const start = (allPage - 1) * PAGE_SIZE;
+  const pageItems = allRecordsData.slice(start, start + PAGE_SIZE);
+
+  document.getElementById('allBody').innerHTML = pageItems.map(r => `
+    <tr>
+      ${rowCellsHtml(r)}
+      <td class="col-action">
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <button class="btn btn-outline" style="padding:3px 8px; font-size:11px;" onclick="openEditRecord('${r.id}')">編輯</button>
+          <button class="btn btn-danger" style="padding:3px 8px; font-size:11px;" onclick="deleteRecord('${r.id}')">刪除</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  renderPager('allPager', allRecordsData.length, allPage, (p) => { allPage = p; renderAllPage(); });
+}
+
+async function deleteRecord(id) {
+  if (!confirm('確定刪除這一筆？')) return;
+  const { error } = await sb.from('stats_submissions').delete().eq('id', id);
+  if (error) { alert('刪除失敗：' + error.message); return; }
+  refreshAllRecords();
+  runSearch();
+}
+
+// ---------- 編輯單筆紀錄 ----------
+let editingRecordId = null;
+
+function openEditRecord(id) {
+  const r = allRecordsData.find(x => x.id === id);
+  if (!r) { alert('找不到這筆資料，畫面可能過期，請重新整理再試'); return; }
+  editingRecordId = id;
+  document.getElementById('editMonth').value = r.report_month || '';
+  document.getElementById('editPlant').value = r.plant || '';
+  document.getElementById('editDepartment').value = r.department || '';
+  syncDeptForPlant('editPlant', 'editDepartment');
+  document.getElementById('editTool').value = r.tool_name || '';
+  document.getElementById('editPlan').value = r.plan_type || '';
+  document.getElementById('editCost').value = r.usage_frequency || '';
+  document.getElementById('editTraffic').value = r.traffic_cost || '';
+  document.getElementById('editPurpose').value = r.purpose || '';
+  document.getElementById('editToken').value = r.token_usage || '';
+  document.getElementById('editNote').value = r.note || '';
+  document.getElementById('editMsg').innerHTML = '';
+  document.getElementById('editBox').classList.remove('hidden');
+}
+
+function closeEditRecord() {
+  document.getElementById('editBox').classList.add('hidden');
+  editingRecordId = null;
+}
+
+async function saveEditRecord() {
+  if (!editingRecordId) return;
+  const msgEl = document.getElementById('editMsg');
+  const updated = {
+    report_month: document.getElementById('editMonth').value.trim(),
+    plant: document.getElementById('editPlant').value,
+    department: document.getElementById('editDepartment').value,
+    tool_name: document.getElementById('editTool').value.trim(),
+    plan_type: document.getElementById('editPlan').value,
+    usage_frequency: document.getElementById('editCost').value.trim(),
+    traffic_cost: document.getElementById('editTraffic').value.trim(),
+    purpose: document.getElementById('editPurpose').value.trim(),
+    token_usage: document.getElementById('editToken').value.trim(),
+    note: document.getElementById('editNote').value.trim(),
+    updated_at: new Date().toISOString()
+  };
+  const { error } = await sb.from('stats_submissions').update(updated).eq('id', editingRecordId);
+  if (error) { msgEl.innerHTML = `<div class="msg err">儲存失敗：${error.message}</div>`; return; }
+
+  closeEditRecord();
+  refreshAllRecords();
+  runSearch();
+}
+
+// ---------- Excel 匯入（累加新增）/ 匯出 ----------
+async function importExcel() {
+  const fileInput = document.getElementById('excelFile');
+  const msgEl = document.getElementById('importMsg');
+  if (!fileInput.files.length) { msgEl.innerHTML = `<div class="msg err">請先選擇檔案</div>`; return; }
+
+  const file = fileInput.files[0];
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+
+  let records = [];
+  let sheetSummary = [];
+  let skippedSheets = [];
+  wb.SheetNames.forEach(sheetName => {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (rows.length === 0) return;
+
+    const headers = Object.keys(rows[0]);
+    const looksLikeStatsSheet = ['部門', '部門別', 'AI 工具名稱', '統計月份'].some(k => headers.includes(k));
+    if (!looksLikeStatsSheet) { skippedSheets.push(sheetName); return; }
+
+    const sheetRecords = rows.map(row => ({
+      report_type: REPORT_TYPE,
+      report_month: String(row['統計月份'] || '').trim(),
+      plant: String(row['廠別'] || '').trim(),
+      department: String(row['部門別'] || row['部門'] || '').trim(),
+      tool_name: String(row['AI 工具名稱'] || '').trim(),
+      plan_type: String(row['使用方案'] || row['方案類型'] || '').trim(),
+      usage_frequency: String(row['方案費用'] || row['使用費用'] || row['使用頻率'] || '').trim(),
+      traffic_cost: String(row['流量計費'] || '').trim(),
+      purpose: String(row['導入工作應用'] || row['主要用途'] || '').trim(),
+      token_usage: String(row['Token用量'] || row['Token / 用量數字'] || row['Token/用量數字'] || '').trim(),
+      note: String(row['備註'] || '').trim(),
+      submitted_by: String(row['填表人'] || '').trim() || currentUser.email
+    })).filter(r => r.department && r.tool_name);
+
+    if (sheetRecords.length > 0) {
+      sheetSummary.push(`${sheetName}(${sheetRecords.length}筆)`);
+      records = records.concat(sheetRecords);
+    }
+  });
+
+  if (records.length === 0) {
+    msgEl.innerHTML = `<div class="msg err">Excel 裡讀不到資料，請確認欄位名稱是否包含：部門別/AI 工具名稱/統計月份 等</div>`;
+    return;
+  }
+
+  // 累加新增：不清空既有資料，直接 insert
+  const { error: insErr } = await sb.from('stats_submissions').insert(records);
+  if (insErr) { msgEl.innerHTML = `<div class="msg err">寫入失敗：${insErr.message}</div>`; return; }
+
+  const skippedNote = skippedSheets.length > 0 ? `，已跳過非統計格式的工作表：${skippedSheets.join('、')}` : '';
+  msgEl.innerHTML = `<div class="msg ok">匯入成功，共新增 ${records.length} 筆（${sheetSummary.join('、')}）${skippedNote}</div>`;
+  fileInput.value = '';
+  refreshAllRecords();
+  runSearch();
+}
+
+async function exportExcel() {
+  const { data, error } = await sb.from('stats_submissions').select('*').eq('report_type', REPORT_TYPE).order('department').order('report_month', { ascending: false });
+  if (error) { alert('匯出失敗：' + error.message); return; }
+
+  const rows = data.map(r => ({
+    '部門別': r.department || '',
+    '廠別': r.plant || '',
+    '填表人': r.submitted_by || '',
+    '統計月份': r.report_month || '',
+    'AI 工具名稱': r.tool_name || '',
+    '使用方案': r.plan_type || '',
+    '方案費用': r.usage_frequency || '',
+    '流量計費': r.traffic_cost || '',
+    '導入工作應用': r.purpose || '',
+    'Token用量': r.token_usage || '',
+    '備註': r.note || ''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'AI用量統計');
+  XLSX.writeFile(wb, `AI用量統計_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+// ---------- 帳號管理 (admin only) ----------
+function toggleAccDeptField() {
+  const role = document.getElementById('newAccRole').value;
+  document.getElementById('newAccDeptWrap').classList.toggle('hidden', !(role === 'filler' || role === 'employee'));
+  document.getElementById('newAccPlantWrap').classList.toggle('hidden', role === 'admin');
+}
+
+async function refreshAccounts() {
+  const { data, error } = await sb.from('stats_access').select('*').order('email');
+  if (error) return;
+  const body = document.getElementById('accBody');
+  body.innerHTML = data.map(a => `
+    <tr>
+      <td style="padding-left:10px;">${escapeHtml(a.email)}</td>
+      <td style="vertical-align:middle;">
+        <select onchange="updateAccountRole('${a.email}', this.value)" style="width:auto; min-width:150px; padding:6px 8px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+          <option value="employee" ${a.role === 'employee' ? 'selected' : ''}>員工</option>
+          <option value="filler" ${a.role === 'filler' ? 'selected' : ''}>部門主管</option>
+          <option value="plant_manager" ${a.role === 'plant_manager' ? 'selected' : ''}>廠區管理者</option>
+          <option value="admin" ${a.role === 'admin' ? 'selected' : ''}>總管理者</option>
+        </select>
+      </td>
+      <td>${escapeHtml(a.plant || '-')}</td>
+      <td>${escapeHtml(a.department || '-')}</td>
+      <td><button class="btn btn-danger" onclick="deleteAccount('${a.email}')">移除</button></td>
+    </tr>
+  `).join('');
+}
+
+async function updateAccountRole(email, newRole) {
+  const acc = (await sb.from('stats_access').select('department, plant').eq('email', email).maybeSingle()).data;
+  const result = await callAdminFunction({ action: 'update_profile', email, role: newRole, department: acc ? acc.department : null, plant: acc ? acc.plant : null });
+  if (result.error) { alert('角色更新失敗：' + result.error); }
+  refreshAccounts();
+}
+
+const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/stats-admin-user-management`;
+
+async function callAdminFunction(payload) {
+  const { data: refreshed } = await sb.auth.refreshSession();
+  let session = refreshed?.session;
+  if (!session) {
+    const { data } = await sb.auth.getSession();
+    session = data.session;
+  }
+  if (!session) {
+    return { error: '登入狀態已失效，請重新整理頁面、重新登入後再試一次' };
+  }
+  const res = await fetch(EDGE_FUNCTION_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify(payload)
+  });
+  return res.json();
+}
+
+async function addAccount() {
+  const email = document.getElementById('newAccEmail').value.trim();
+  const password = document.getElementById('newAccPassword').value;
+  const role = document.getElementById('newAccRole').value;
+  const plant = document.getElementById('newAccPlant').value;
+  const department = document.getElementById('newAccDept').value;
+  const msgEl = document.getElementById('accMsg');
+  if (!email) { msgEl.innerHTML = `<div class="msg err">請輸入 email</div>`; return; }
+  if ((role === 'filler' || role === 'employee') && (!plant || !department)) { msgEl.innerHTML = `<div class="msg err">員工／部門主管請選廠別與部門</div>`; return; }
+  if (role === 'plant_manager' && !plant) { msgEl.innerHTML = `<div class="msg err">廠區管理者請選廠別</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">建立中...</div>`;
+  const result = await callAdminFunction({ action: 'create', email, password, role, plant, department });
+  if (result.error) { msgEl.innerHTML = `<div class="msg err">失敗：${result.error}</div>`; return; }
+
+  msgEl.innerHTML = result.reusedExisting
+    ? `<div class="msg ok">這個 email 在 TL_projects 其他系統早就有登入帳號了，已直接沿用，請用他原本的密碼登入</div>`
+    : `<div class="msg ok">全新帳號建立成功，可以請對方用這組 email/密碼登入了</div>`;
+  document.getElementById('newAccEmail').value = '';
+  document.getElementById('newAccPassword').value = '';
+  document.getElementById('newAccPlant').value = '';
+  document.getElementById('newAccDept').value = '';
+  refreshAccounts();
+}
+
+async function deleteAccount(email) {
+  if (!confirm(`確定移除 ${email} 在「統計系統」的權限？\n\n這只會取消他在這個系統的存取權，不會刪除他在 TL_projects 其他系統（wechat-manager、訪談系統等）的登入帳號。`)) return;
+  const result = await callAdminFunction({ action: 'delete', email });
+  if (result.error) { alert('失敗：' + result.error); return; }
+  refreshAccounts();
+}
+
+// ---------- 帳號設定：自己改密碼 ----------
+async function changePassword() {
+  const p1 = document.getElementById('newPassword1').value;
+  const p2 = document.getElementById('newPassword2').value;
+  const msgEl = document.getElementById('pwdMsg');
+
+  if (!p1 || p1.length < 6) { msgEl.innerHTML = `<div class="msg err">密碼至少需要 6 碼</div>`; return; }
+  if (p1 !== p2) { msgEl.innerHTML = `<div class="msg err">兩次輸入的密碼不一致</div>`; return; }
+
+  const { error } = await sb.auth.updateUser({ password: p1 });
+  if (error) { msgEl.innerHTML = `<div class="msg err">修改失敗：${error.message}</div>`; return; }
+
+  msgEl.innerHTML = `<div class="msg ok">密碼已更新，下次登入請用新密碼</div>`;
+  document.getElementById('newPassword1').value = '';
+  document.getElementById('newPassword2').value = '';
+
+  setTimeout(() => {
+    document.getElementById('pwdBox').classList.add('hidden');
+    msgEl.innerHTML = '';
+  }, 1200);
+}
+
+// ---------- 表格可直接按住拖曳左右滑動（不用一定要抓那條細捲軸） ----------
+function enableDragScroll(el) {
+  let isDown = false, startX = 0, scrollLeft = 0;
+  el.addEventListener('mousedown', (e) => {
+    // 如果按下的是按鈕、輸入框等可互動元件，不啟動拖曳，避免蓋掉原本點擊功能
+    if (e.target.closest('button, a, input, select, textarea')) return;
+    isDown = true;
+    el.classList.add('dragging');
+    startX = e.pageX - el.offsetLeft;
+    scrollLeft = el.scrollLeft;
+  });
+  ['mouseleave', 'mouseup'].forEach(evt => el.addEventListener(evt, () => {
+    isDown = false;
+    el.classList.remove('dragging');
+  }));
+  el.addEventListener('mousemove', (e) => {
+    if (!isDown) return;
+    e.preventDefault();
+    const x = e.pageX - el.offsetLeft;
+    el.scrollLeft = scrollLeft - (x - startX);
+  });
+}
+document.querySelectorAll('.table-wrap').forEach(enableDragScroll);
+
+// ---------- 進站時檢查是否已登入 ----------
+(async () => {
+  const rememberedEmail = localStorage.getItem('stats_manager_remembered_email');
+  if (rememberedEmail) {
+    document.getElementById('loginEmail').value = rememberedEmail;
+    document.getElementById('rememberEmail').checked = true;
+  }
+
+  const { data } = await sb.auth.getSession();
+  if (data.session) {
+    const email = data.session.user.email;
+    const { data: access } = await sb.from('stats_access').select('role, department, plant').eq('email', email).maybeSingle();
+    if (access) {
+      currentUser = data.session.user;
+      currentRole = access.role;
+      currentDepartment = access.department;
+      currentPlant = access.plant;
+      enterApp();
+    }
+  }
+})();
+</script>
+</body>
+</html>
